@@ -1,0 +1,7 @@
+venv/
+.chainlit/
+.env
+chroma_db/
+crawled_pages.json
+*/__pycache__/
+login/cookies.pkl
