@@ -62,7 +62,6 @@ class ThreadedCrawler:
                 url = self.queue.get()
                 if url is None:
                     return
-                print(url)
                 response = self.session.get(url, timeout=self.timeout, allow_redirects=True)
                 content_type = response.headers.get('Content-Type', '')
                 if response.status_code != 200 or 'text/html' not in content_type:
@@ -89,6 +88,7 @@ class ThreadedCrawler:
                         if link not in self.visited:
                             self.visited.add(link)
                             self.queue.put(link)
+                print(url)
             except Exception as e:
 
                 print(f'Error crawling {url}: {e}')
