@@ -29,7 +29,7 @@ def crawl(session: Session, url: str) -> str:
     return response.text
 
 class ThreadedCrawler:
-    def __init__(self, session: Session, start_url: str, max_threads: int = 5):
+    def __init__(self, session: Session, start_url: str, max_threads: int = 5, whitelisted_domains: list[str] | None = None, timeout: int = 30):
         self.start_url = start_url
         self.domain = urlparse(start_url).netloc
 
@@ -39,6 +39,8 @@ class ThreadedCrawler:
         self.session = session
         self.max_threads = max_threads
         self.options = htm.ConversionOptions(exclude_selectors=['script', 'style', 'noscript', 'footer', 'nav'])
+        self.whitelisted_domains = whitelisted_domains if whitelisted_domains is not None else ['https://www.uni-augsburg.de/de/portal/intranet/', 'https://brand-portal.uni-augsburg.de/', 'https://my.corebook.io/uni-augsburg']
+        self.timeout = timeout
         self.pages: list[tuple[str, str]] = []
 
     def normalize_url(self, base_url, href):
@@ -60,7 +62,7 @@ class ThreadedCrawler:
                 if url is None:
                     return
                 print(url)
-                response = self.session.get(url, timeout=20, allow_redirects=True)
+                response = self.session.get(url, timeout=self.timeout, allow_redirects=True)
                 content_type = response.headers.get('Content-Type', '')
                 if response.status_code != 200 or 'text/html' not in content_type:
                     continue
@@ -81,7 +83,7 @@ class ThreadedCrawler:
                     if link is None:
                         continue
                     ll = link.strip().lower()
-                    if not any(ll.startswith(i) for i in ['https://www.uni-augsburg.de/de/portal/intranet/', 'https://brand-portal.uni-augsburg.de/', 'https://my.corebook.io/uni-augsburg']): continue
+                    if not any(ll.startswith(i) for i in self.whitelisted_domains): continue
                     with self.lock:
                         if link not in self.visited:
                             self.visited.add(link)
