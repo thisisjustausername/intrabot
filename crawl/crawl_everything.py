@@ -18,3 +18,9 @@ pages = crawler.pages
 print('saving pages to crawled_pages_all.json')
 with open('crawled_pages_all.json', 'w') as f:
     json.dump(pages, f, indent=4)
+with open('stats_crawled_all.json', 'w') as f:
+    json.dump({
+        'visited_urls': list(visited_urls),
+        'error_urls': list(crawler.error_urls),
+        'pages_count': len(pages)
+    }, f, indent=4)

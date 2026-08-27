@@ -29,12 +29,12 @@ def crawl(session: Session, url: str) -> str:
     return response.text
 
 class ThreadedCrawler:
-    def __init__(self, session: Session, start_url: str, max_threads: int = 5, whitelisted_domains: list[str] | None = None, timeout: int = 30):
+    def __init__(self, session: Session, start_url: str, max_threads: int = 5, whitelisted_domains: list[str] | None = None, timeout: int = 30, visited: set[str] | None = None):
         self.start_url = start_url
         self.domain = urlparse(start_url).netloc
 
         self.queue = Queue()
-        self.visited = set()
+        self.visited = set() if visited is None else visited
         self.lock = threading.Lock()
         self.session = session
         self.max_threads = max_threads
@@ -42,6 +42,7 @@ class ThreadedCrawler:
         self.whitelisted_domains = whitelisted_domains if whitelisted_domains is not None else ['https://www.uni-augsburg.de/de/portal/intranet/', 'https://brand-portal.uni-augsburg.de/', 'https://my.corebook.io/uni-augsburg']
         self.timeout = timeout
         self.pages: list[tuple[str, str]] = []
+        self.error_urls = set()
 
     def normalize_url(self, base_url, href):
         '''Converts relative URLs to absolute and strips fragments (#anchor).'''
@@ -89,7 +90,9 @@ class ThreadedCrawler:
                             self.visited.add(link)
                             self.queue.put(link)
             except Exception as e:
+
                 print(f'Error crawling {url}: {e}')
+                self.error_urls.add(url)
             finally:
                 self.queue.task_done()
 
@@ -132,3 +135,9 @@ if __name__ == '__main__':
     print('saving pages to crawled_pages.json')
     with open('crawled_pages.json', 'w') as f:
         json.dump(pages, f, indent=4)
+    with open('stats_crawled.json', 'w') as f:
+        json.dump({
+            'visited_urls': list(visited_urls),
+            'error_urls': list(crawler.error_urls),
+            'pages_count': len(pages)
+        }, f, indent=4)
