@@ -10,3 +10,4 @@ langchain_chroma
 langgraph
 tqdm
 trafilatura
+langchain_text_splitters

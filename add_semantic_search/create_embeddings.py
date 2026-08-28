@@ -7,7 +7,12 @@ import json
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_ollama import OllamaEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=3000,
+    chunk_overlap=200
+)
 
 with open('crawled_pages.json', 'r') as f:
     data = json.load(f)
@@ -15,18 +20,28 @@ with open('crawled_pages.json', 'r') as f:
 pgs = [i[0] for i in data]
 if len(pgs) != len(set(pgs)):
     print('Duplicate pages found')
+    clean_data = []
+    cl_urls = []
+    for i in data:
+        if i[0] not in cl_urls:
+            clean_data.append(i)
+            cl_urls.append(i[0])
+    data = clean_data
+print(f"Number of unique pages: {len(data)}")
 
 embeddings = OllamaEmbeddings(model="qwen3-embedding")
 
 docs = []
 
 for entry in data:
-    dta = 'URL: ' + entry[0] + '\n\n' + entry[1]
+    for chunk in splitter.split_text(entry[1]):
+        doc = Document(
+            page_content=chunk,
+            metadata={"source": entry[0]}
+        )
+        docs.append(doc)
 
-    doc = Document(
-        page_content=dta,
-    )
-    docs.append(doc)
+print(f"Number of documents: {len(docs)}")
 
 vector_store = Chroma.from_documents(
     documents=docs,
