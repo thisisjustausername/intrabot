@@ -5,6 +5,7 @@ import chainlit as cl
 
 from add_semantic_search.raw_semantic_search import search_urls
 
+
 @cl.on_message
 async def main(message: cl.Message):
     urls = search_urls(query=message.content, k=15, similarity_threshold=0.1)

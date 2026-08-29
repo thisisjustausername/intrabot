@@ -27,7 +27,7 @@ Create tool
 ################################################################
 
 
-def search_intranet(query: str, k: int = 5, similarity_threshold: float = 0.1) -> list[tuple[str, float]]:
+def search_intranet(query: str, k: int = 5, similarity_threshold: float = 0.1) -> list[tuple[str, str, float]]:
     '''
     Searches the internal intranet websites for relevant results.
 
@@ -36,10 +36,10 @@ def search_intranet(query: str, k: int = 5, similarity_threshold: float = 0.1) -
         k (int): Number of relevant results to return. Default is 5.
         similarity_threshold (float): Minimum similarity score for a result to be considered relevant. Default is 0.1.
     Returns:
-        str: List of relevant results containing URL and content.
+        list[tuple[str, str, float]]: List of relevant results containing content, URL and similarity score.
     '''
     matches = db.similarity_search_with_relevance_scores(query, k=k, score_threshold=similarity_threshold)
-    return [(match.page_content, score) for match, score in matches]
+    return [(match.page_content, match.metadata['source'], score) for match, score in matches]
 
 
 def search(query: str, k: int = 5, visualize: bool = True) -> list[str]:
@@ -56,7 +56,7 @@ def search(query: str, k: int = 5, visualize: bool = True) -> list[str]:
     results =  search_intranet(query=query, k=k)
     prefix = 'https://uni-augsburg.de'
     start = lambda x: f'DOCUMENT No. {x[0]+1} ({round(x[1] * 100, 2)}%)\n\n'
-    results = [start((index, prob)) + re.sub(r'\[([^\n]+)\]\((\/[^\n]+)\)', rf'[\1]({prefix}\2)', res) for index, (res, prob) in enumerate(results)]
+    results = [start((index, prob)) + url for index, (_, url, prob) in enumerate(results)] # re.sub(r'\[([^\n]+)\]\((\/[^\n]+)\)', rf'[\1]({prefix}\2)', res)
     result = '\n\n\n***\n***\n***\n\n\n'.join(results)
 
     if visualize:
@@ -76,13 +76,12 @@ def search_urls(query: str, k: int = 5, similarity_threshold: float = 0.1) -> li
         str: List of relevant results containing only the URLs and their probability.
     '''
     results = search_intranet(query=query, k=k, similarity_threshold=similarity_threshold)
-    urls = [(res[5:].split('\n', 1)[0], prob) for (res, prob) in results]
-    # urls = sorted(set(urls), key=urls.index)
-    dedupl_urls = {}
-    for url in urls:
-        if url[0] not in dedupl_urls:
-            dedupl_urls[url[0]] = url[1]
-    return sorted([(k, v) for k, v in dedupl_urls.items()], key=lambda x: x[1], reverse=True)
+    urls = [(url, prob) for (_, url, prob) in results]
+    return sorted(set(urls), key=lambda x: x[1], reverse=True)
+    # dedupl_urls = {}
+    # for url in urls:
+    #     if url[0] not in dedupl_urls:
+        #         dedupl_urls[url[0]] = url[1]
 
 def chat(output_amount: int = 5, k: int = 15, similarity_threshold: float = 0.1):
     '''
