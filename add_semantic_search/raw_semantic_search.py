@@ -16,7 +16,7 @@ Initialize vector database
 
 embeddings = OllamaEmbeddings(model='qwen3-embedding')
 db = Chroma(
-            persist_directory='chroma_db',
+            persist_directory='chroma_db_all',
             embedding_function=embeddings,
         )
 
