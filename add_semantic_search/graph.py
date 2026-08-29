@@ -25,6 +25,8 @@ from rich.live import Live
 from rich.markdown import Markdown
 from typing_extensions import TypedDict
 
+from add_semantic_search.lexical_search import search_bm25
+
 warnings.filterwarnings('ignore', category=LangChainBetaWarning)
 
 
@@ -57,6 +59,12 @@ Create tools
 ################################################################
 
 
+def replacer(match):
+    label, url = match.group(1), match.group(2)
+    absolute = urljoin('https://www.uni-augsburg.de', url)
+    return f'URL to {label}: {absolute}'
+
+
 @tool
 async def search_intranet(query: str, k: int = 5) -> list[str]:
     '''
@@ -68,19 +76,14 @@ async def search_intranet(query: str, k: int = 5) -> list[str]:
         k (int): Die Anzahl der zurückzugebenden relevanten Ergebnisse.
 
     Returns:
-        str: Die relevantesten Informationen aus der Website inklusive der Quelle (URL) am Anfang der Dokumente.
+        list[str]: Die relevantesten Informationen aus der Website mit URL in der ersten Zeile, Ähnlichkeitswert in der zweiten Zeile und Inhalt darunter. Wenn keine relevanten Informationen gefunden wurden, wird eine entsprechende Nachricht angegeben.
     '''
-    matches = db.similarity_search(query, k=k)
-
+    # matches = db.similarity_search(query, k=k)
+    matches = [f'URL: {i[0]}\nSimilarity: {float(i[2])}\n\n{re.sub(r'\[([^\]]+)\]\(([^)]+)\)', replacer, i[1])}' for i in search_bm25(query, k=k)]
     if not matches:
         return ['Keine passenden Informationen gefunden.']
-    return [match.page_content for match in matches]
+    return matches
 
-
-def replacer(match):
-    label, url = match.group(1), match.group(2)
-    absolute = urljoin('https://www.uni-augsburg.de', url)
-    return f'URL to {label}: {absolute}'
 
 
 # TODO: instead of using trafilatula, convert to markdown
@@ -153,11 +156,12 @@ tools_by_name = {tool.name: tool for tool in tools}
 model_with_tools = model.bind_tools(tools)
 
 
-system_prompt = '''Du bist ein hochpräziser Assistent für das Intranet der Universität Augsburg.
+system_prompt = '''Du bist ein hochpräziser Assistent für die Website Universität Augsburg.
+Du berätst Mitarbeitende und hast Zugriff auf das Intranet und den öffentlichen Bereich der Universität Augsburg Website.
 Du kannst NUR Fragen bezüglich des Intranets beantworten. Wenn Du eine Frage erhältst, verwende das Suchwerkzeug, um die Informationen zu finden.
 Falls die Frage keine Suchergebnisse liefert und nichts mit dem Intranet zu tun hat, antworte mit 'Darüber habe ich leider keine Kenntnisse.'
 Nutze das Suchwerkzeug bei Fragen zu Informationen aus dem Intranet.
-Antworte auf Deutsch und in schönem Markdown-Format.
+Antworte auf Deutsch und in schönem Markdown-Format. Für Aufzählungen sind besonders Tabellen aber auch Listen erwünscht.
 
 Regeln:
     - Verwende das Suchwerkzeug search_intranet, um Informationen zufinden

@@ -7,3 +7,4 @@ crawled_pages.json
 login/cookies.pkl
 *.json
 screenlog.*
+uni_all_retriever

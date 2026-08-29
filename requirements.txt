@@ -11,3 +11,4 @@ langgraph
 tqdm
 trafilatura
 langchain_text_splitters
+bm25
