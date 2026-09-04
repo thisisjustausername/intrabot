@@ -2,16 +2,18 @@
 This script implements a threaded web crawler that starts from a given URL and crawls all reachable pages within the same domain. It uses the `requests` library to make HTTP requests, `BeautifulSoup` to parse HTML, and `html_to_markdown` to convert HTML content to Markdown format. The crawler is designed to handle multiple threads for concurrent crawling, improving efficiency.
 '''
 import json
-
 import os
-from urllib.parse import urljoin, urlparse
+import re
 import threading
 from queue import Queue
-from requests import Session
-from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+
 import html_to_markdown as htm
+from bs4 import BeautifulSoup
+from requests import Session
 
 from login.login import load_session
+
 
 def crawl(session: Session, url: str) -> str:
     '''
@@ -29,9 +31,8 @@ def crawl(session: Session, url: str) -> str:
     return response.text
 
 class ThreadedCrawler:
-    def __init__(self, session: Session, start_url: str, max_threads: int = 5, whitelisted_domains: list[str] | None = None, timeout: int = 30, visited: set[str] | None = None):
-        self.start_url = start_url
-        self.domain = urlparse(start_url).netloc
+    def __init__(self, session: Session, start_urls: list[str], max_threads: int = 5, whitelisted_domains: set[str] | None = None, blacklisted_domains: set[str] | None = None, timeout: int = 30, visited: set[str] | None = None):
+        self.start_urls = start_urls
 
         self.queue = Queue()
         self.visited = set() if visited is None else visited
@@ -39,7 +40,8 @@ class ThreadedCrawler:
         self.session = session
         self.max_threads = max_threads
         self.options = htm.ConversionOptions(exclude_selectors=['script', 'style', 'noscript', 'footer', 'nav'])
-        self.whitelisted_domains = whitelisted_domains if whitelisted_domains is not None else ['https://www.uni-augsburg.de/de/portal/intranet/', 'https://brand-portal.uni-augsburg.de/', 'https://my.corebook.io/uni-augsburg']
+        self.whitelisted_domains = whitelisted_domains if whitelisted_domains is not None else {r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de(/.*)?$', r'^https://brand-portal\.uni-augsburg\.de(/.*)?$', r'^https://my\.corebook\.io/uni-augsburg(/.*)?$'}
+        self.blacklisted_domains = blacklisted_domains if blacklisted_domains is not None else {r'^https://collab.dvb.bayern/users(/.*)?$', r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de/en(/.*)?$'}
         self.timeout = timeout
         self.pages: list[tuple[str, str]] = []
         self.error_urls = set()
@@ -67,10 +69,13 @@ class ThreadedCrawler:
                 if response.status_code != 200 or 'text/html' not in content_type:
                     continue
                 markdown = htm.convert(response.text, options=self.options)
-                self.pages.append((url, markdown.content))
+                page_url = response.url or url  # Use the final URL after redirects if available
+                if page_url not in self.visited:
+                    with self.lock:
+                        self.visited.add(page_url)
+                self.pages.append((page_url, markdown.content))
 
                 soup = BeautifulSoup(response.text, 'html.parser')
-                page_url = response.url
                 base_tag = soup.find('base', href=True)
                 if base_tag:
                     # If base_tag is itself relative, resolve it against page_url
@@ -83,23 +88,24 @@ class ThreadedCrawler:
                     if link is None:
                         continue
                     ll = link.strip().lower()
-                    if not any(ll.startswith(i) for i in self.whitelisted_domains): continue
+                    if not any(re.match(i, ll) for i in self.whitelisted_domains): continue
+                    if any(re.match(i, ll) for i in self.blacklisted_domains): continue
                     with self.lock:
                         if link not in self.visited:
                             self.visited.add(link)
                             self.queue.put(link)
-                print(url)
+                print(page_url)
             except Exception as e:
-
-                print(f'Error crawling {url}: {e}')
+                print(f'\033[31mError crawling {url}: {e}\033[0m')
                 self.error_urls.add(url)
             finally:
                 self.queue.task_done()
 
     def run(self):
         # Seed initial URL
-        self.visited.add(self.start_url)
-        self.queue.put(self.start_url)
+        for start_url in self.start_urls:
+            self.visited.add(start_url)
+            self.queue.put(start_url)
 
         # Start worker threads
         threads = []
