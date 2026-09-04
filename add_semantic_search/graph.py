@@ -19,7 +19,8 @@ from langchain.tools import tool
 from langchain_chroma import Chroma
 from langchain_core._api.beta_decorator import LangChainBetaWarning
 from langchain_ollama import ChatOllama, OllamaEmbeddings
-from langgraph.graph import END, START, StateGraph
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, START, StateGraph, add_messages
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
@@ -146,7 +147,7 @@ Create workflow
 ################################################################
 
 class MessagesState(TypedDict):
-    messages: Annotated[list[AnyMessage], operator.add]
+    messages: Annotated[list[AnyMessage], add_messages]
     llm_calls: int
 
 
@@ -245,8 +246,10 @@ agent_builder.add_conditional_edges(
 )
 agent_builder.add_edge('tool_node', 'llm_call')
 
+checkpointer = MemorySaver()
+
 # Compile the agent
-agent = agent_builder.compile()
+agent = agent_builder.compile(checkpointer=checkpointer)
 
 query = 'Wo finde ich Informationen zu Korruption?'
 
@@ -266,7 +269,7 @@ def get_info(event) -> dict[str, str | None]:
     return info
 
 
-
+'''
 async def main():
     console = Console()
     accumulated_text = ''
@@ -288,16 +291,25 @@ async def main():
                 status = True
                 accumulated_text += res['content'] if res['content'] is not None else ''
                 live.update(Markdown(accumulated_text))
+'''
+
+@cl.on_chat_start
+async def start():
+    cl.user_session.set("thread_id", cl.context.session.id)
 
 @cl.on_message
 async def main(message: cl.Message):
+    thread_id = cl.user_session.get("thread_id")
+    config = {"configurable": {"thread_id": thread_id}}
+
     msg = cl.Message(content="")
     await msg.send()
     last_run_id = None
 
     run = await agent.astream_events(
         {"messages": [HumanMessage(content=message.content)]},
-        version="v3"
+        version="v3",
+        config=config
     )
     async for event in run:
         res = get_info(event)
@@ -323,3 +335,9 @@ async def main(message: cl.Message):
             if res['content']:
                 await msg.stream_token(res['content'])
     await msg.update()
+
+@cl.on_chat_end
+async def end():
+    thread_id = cl.user_session.get("thread_id")
+    if thread_id and thread_id in checkpointer.storage:
+        checkpointer.storage.pop(thread_id)
