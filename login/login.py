@@ -97,33 +97,36 @@ def login(session: requests.Session, user_name: str, password: str, secret: str,
     next_step_url = soup.find('form', id='kc-form-login').get('action')
 
     # pass in user data to get to the next step
-    result = session.post(next_step_url, data={'username': user_name, 'password': password})
+    result = session.post(next_step_url, data={'username': user_name, 'password': password}) # type: ignore
     soup = BeautifulSoup(result.text, 'lxml')
     field = soup.find('form', id='kc-otp-login-form')
-    selectedCredentialId = field.find('input', id='selectedCredentialId').get('value')
-    final_url = field.get('action')
+    selectedCredentialId = field.find('input', id='selectedCredentialId').get('value') # type: ignore
+    final_url = field.get('action') # type: ignore
 
     # send the TOTP token to complete the login process
-    result = session.post(final_url, data={'selectedCredentialId': selectedCredentialId, 'otp': generate_totp(secret)})
-
-    # now complete the second part of the login process: SAML response
-    login_url = 'https://digicampus.uni-augsburg.de/Shibboleth.sso/Login?target=https%3A%2F%2Fdigicampus.uni-augsburg.de%2F%3Fsso%3Dshibboleth%26cancel_login%3D1%26again%3Dyes&entityID=https%3A%2F%2Fidp.rz.uni-augsburg.de%2Fsimplesaml%2Fsaml2%2Fidp%2Fmetadata.php'
-    data = session.get(login_url)
-    soup = BeautifulSoup(data.text, 'lxml')
-    final_redirect = soup.find('form')
-    data = final_redirect.find('input')
-    result = session.post(final_redirect.get('action'), data={data.get('name'): data.get('value')})
-
-    soup = BeautifulSoup(result.text, 'lxml')
-    saml = soup.find('form')
-    hidden = saml.find_all('input', {'type': 'hidden'})
-    data = {i.get('name'): i.get('value') for i in hidden if i.get('name') is not None}
-    result = session.post(saml.get('action'), data=data)
+    result = session.post(final_url, data={'selectedCredentialId': selectedCredentialId, 'otp': generate_totp(secret)}) # type: ignore
 
     save_session(file=cookie_path, session=session)
 
     return result, session
 
+
+@NotImplementedError
+def login_collab_dvb_bayern(session: requests.Session, user_name: str, password: str, secret: str, cookie_path: str) -> tuple[requests.Response, requests.Session]:
+    '''
+    Logs into the Collab DVB Bayern using TOTP authentication.
+    Args:
+        session (requests.Session): The requests session object to use for the login process
+        user_name (str): The username for the Collab DVB Bayern login
+        password (str): The password for the Collab DVB Bayern login
+        secret (str): The base32-encoded secret used to generate the TOTP token
+        cookie_path (str): The path to save the session cookies if save_sess is True
+    '''
+
+    # url to start the login process
+    start_url = 'https://collab.dvb.bayern/plugins/servlet/samlsso?redirectTo=%2F'
+    result = session.get(start_url)
+    soup = BeautifulSoup(result.text, 'lxml')
 
 def save_session(file: str, session: requests.Session) -> None:
     """
@@ -154,10 +157,10 @@ def load_session(session: requests.Session) -> requests.Session:
 
     # load login parameters from .env
     load_dotenv()
-    user_name = os.getenv('USERNAME')
-    password = os.getenv('PASSWORD')
-    secret = os.getenv('TOTP')
-    cookie_path = os.getenv('COOKIE_PATH')
+    user_name: str = os.getenv('USERNAME')
+    password: str = os.getenv('PASSWORD')
+    secret: str = os.getenv('TOTP')
+    cookie_path: str = os.getenv('COOKIE_PATH')
 
     # reading the saved cookies
     try:
