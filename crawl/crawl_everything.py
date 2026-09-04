@@ -1,13 +1,17 @@
-from requests import Session
-from login.login import load_session
-import os
 import json
+import os
+
+from requests import Session
+
 from crawl.crawl_intranet import ThreadedCrawler
+from login.login import load_session
+
+# TODO: for redirects use last url for saving
 
 # Example usage
 session = Session()
 load_session(session)  # Load the session with login cookies or headers
-start_url = 'https://www.uni-augsburg.de/'
+start_urls = ['https://www.uni-augsburg.de', 'https://www.uni-augsburg.de/de/portal/intranet/', 'https://collab.dvb.bayern/', 'https://collab.dvb.bayern/spaces/UniARZSER/pages/395639043/Knowledge+Base+des+Rechenzentrums', 'https://collab.dvb.bayern/spaces/UniAZV2/pages/751046293/Knowledge+Base+der+Personalabteilung+der+Universit%C3%A4t+Augsburg', 'https://collab.dvb.bayern/spaces/UniARZHPCKB/pages/392035423/Knowledge+Base+f%C3%BCr+wissenschaftliches+Rechnen+HPC+Startseite']
 
 stats = None
 try:
@@ -21,9 +25,10 @@ previously_error_urls = set(stats.get('error_urls', [])) if stats else None
 
 crawler = ThreadedCrawler(
     session,
-    start_url,
+    start_urls,
     max_threads=(os.cpu_count() or 32) * 10,
-    whitelisted_domains=['https://www.uni-augsburg.de', 'https://brand-portal.uni-augsburg.de', 'https://my.corebook.io/uni-augsburg'],
+    whitelisted_domains={r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de(/.*)?$', r'^https://brand-portal\.uni-augsburg\.de(/.*)?$', r'^https://my\.corebook\.io/uni-augsburg(/.*)?$', r'^https://collab\.dv\b.bayern(/.*)?$', r'^https://www\.uni-augsburg\.de/admin/login(/.*)?$'},
+    blacklisted_domains={r'^https://collab.dvb.bayern/users(/.*)?$', r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de/en(/.*)?$', r'^https://collab\.dvb\.bayern/login.action\?.*?$', r'^https://www\.uni-augsburg\.de/admin/login(/.*)?$'},
     timeout=60,
     visited=previously_visited_urls.union(previously_error_urls) if previously_visited_urls is not None else None # type: ignore
 )
