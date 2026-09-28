@@ -5,7 +5,7 @@ reloaded_retriever = bm25s.BM25.load('uni_all_retriever', load_corpus=True)
 stemmer = Stemmer.Stemmer('german')
 
 
-def search_bm25(query: str, k: int = 15) -> list[tuple[str, str, float]]:
+def search_bm25(query: str, k: int = 5) -> list[tuple[str, str, float]]:
     '''
     Search through the University of Augsburg website using bm25
 
@@ -27,7 +27,7 @@ def search_bm25(query: str, k: int = 15) -> list[tuple[str, str, float]]:
         if i['url'] in non_dupl_urls:
             continue
         non_dupl_urls.append(i['url'])
-        non_dupl.append((i['url'], i['content'], sim))
+        non_dupl.append((i['url'], i['full_doc'], sim))
 
     results = non_dupl[:k]
     return results

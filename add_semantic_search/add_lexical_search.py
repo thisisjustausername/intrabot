@@ -1,10 +1,11 @@
-import bm25s
 import json
+
+import bm25s
 import Stemmer
 
 with open('docs_all.json', 'r') as f:
     data = json.load(f)
-data = [{'url': i[0], 'content': f'URL: {i[0]}\n\n{i[1]}'} for i in data if not i[0].startswith('https://www.uni-augsburg.de/en/')] # add url to content anyways for better results and filter out english results
+data = [{'url': i[0], 'content': f'URL: {i[0]}\n\n{i[1]}', 'full_doc': f'URL: {i[0]}\n\n{i[2]}'} for i in data if not i[0].startswith('https://www.uni-augsburg.de/en/')] # add url to content anyways for better results and filter out english results
 
 stemmer = Stemmer.Stemmer('german')
 
