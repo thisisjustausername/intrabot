@@ -5,22 +5,23 @@ Run using: chainlit run add_semantic_search/graph.py --host 127.0.0.1 --port 800
 '''
 
 
-import operator
 import re
 import warnings
 from typing import Annotated, Literal
 from urllib.parse import urljoin
 
 import chainlit as cl
+import html_to_markdown as htm
 import httpx
-import trafilatura
 from langchain.messages import AnyMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain.tools import tool
 from langchain_chroma import Chroma
 from langchain_core._api.beta_decorator import LangChainBetaWarning
 from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph, add_messages
+from pydantic import SecretStr
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
@@ -32,6 +33,7 @@ warnings.filterwarnings('ignore', category=LangChainBetaWarning)
 
 
 mdl = 'qwen3.8:27b'
+# mdl = 'Qwen/Qwen3.8-27B-FP8'
 
 ################################################################
 '''
@@ -40,17 +42,35 @@ Initialize vector database and model
 ################################################################
 
 embeddings = OllamaEmbeddings(model='qwen3-embedding')
+'''
 db = Chroma(
-            persist_directory='chroma_db',
+            persist_directory='chroma_db_all',
             embedding_function=embeddings,
         )
+'''
+
+'''
+model = ChatOpenAI(
+    model=mdl,
+    temperature=0.5,
+    max_completion_tokens=4096,
+    streaming=True,
+    # reasoning=False,
+    base_url='http://localhost:8010/v1',
+    extra_body={"top_k": 20},
+    top_p=0.95,
+    # presence_penalty=0,
+    # min_p=0,
+    api_key=SecretStr('not-a-real-key'),
+)
+'''
 
 model = ChatOllama(
     model=mdl,
     temperature=0.5,
     num_predict=4096,
     num_ctx=262144,
-    streaming=True
+    streaming=True # type: ignore
 )
 
 ################################################################
@@ -58,6 +78,8 @@ model = ChatOllama(
 Create tools
 '''
 ################################################################
+
+options = htm.ConversionOptions(exclude_selectors=['script', 'style', 'noscript', 'footer', 'nav'])
 
 
 def replacer(match):
@@ -89,9 +111,11 @@ async def search_intranet(query: str, k: int = 5) -> list[str]:
 
 # TODO: instead of using trafilatula, convert to markdown
 @tool
-async def suche_uni_augsburg(query: str, k: int = 3) -> list[str]:
+async def dirty_search(query: str, k: int = 3) -> list[str]:
     '''
     Findet Seiten der Uni Augsburg mit Informationen zu dem Query.
+    Verwende diese Suche nur als Fallback, wenn search_intranet nichts findet.
+    Diese Suche greift nur auf den öffentlichen Teil der Website zu, funktioniert aber besonders gut, wenn Tippfehler in der Suchanfrage vorhanden sind.
 
     Args:
         query (str): Die Suchanfrage, die Informationen oder eine Frage enthält. Mache deutlich, dass sich das Query auf die Universität Augsburg bezieht.
@@ -128,11 +152,24 @@ async def suche_uni_augsburg(query: str, k: int = 3) -> list[str]:
         except httpx.HTTPError:
             continue
 
-        text = trafilatura.extract(response.text, include_links=True)
+        if response.url != url and response.url:
+            url = str(response.url)
+        text = htm.convert(response.text, options=options).content
+        print(text)
         if not text:
             continue
         text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', replacer, text)
-        text = text.replace('@uni-auni-a.de', '@uni-a.de')
+        # text = text.replace('@uni-auni-a.de', '@uni-a.de')
+        splitted = text.split('@')
+        for i in range(1, len(splitted)):
+            email_end, rest = splitted[i].split('.de', 1)
+            # unia website always marks email domains thick so remove the non thick part (has to match the thick part)
+            if len(email_end) > 3 and len(email_end) < 50 and (split := email_end.split('**', 3))[0] == split[1]:
+                email_end = f'@{email_end.split('**', 3)[1]}.de'
+            else:
+                email_end = f'@{email_end}.de'
+            splitted[i] = email_end + rest
+        text = ''.join(splitted)
         # condensed_text = await _condense_text(text, query)
         results.append(f'Quelle: {url}\n{text}')
     if not results:
@@ -152,7 +189,7 @@ class MessagesState(TypedDict):
 
 
 # Augment the LLM with tools
-tools = [search_intranet] # , suche_uni_augsburg]
+tools = [search_intranet, dirty_search] # , suche_uni_augsburg]
 tools_by_name = {tool.name: tool for tool in tools}
 model_with_tools = model.bind_tools(tools)
 
@@ -176,7 +213,10 @@ Regeln:
     - Teile die URLs, zu denen Du Informationen aus dem Search-Tool verwendest.
 
 Tools:
-    - search_intranet: Durchsucht die internen Intranet-Websiten auf passende Ergebnisse. (Search-Tool)
+    - search_intranet: Durchsucht die internen Intranet-Websiten und die offiziellen Websiten der Universität Augsburg auf passende Ergebnisse. (Search-Tool)
+    - dirty_search: Durchsucht die offiziellen Websiten der Universität Augsburg auf passende Ergebnisse. (Search-Tool)
+        * Verwende dirty_search als Fallback, wenn search_intranet nichts findet.
+        * dirty_search findet nur öffentlich zugängliche Websites der Universität Augsburg und ist geeignet für Queries, die Typos enthalten.
 '''
 
 
