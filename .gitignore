@@ -8,3 +8,4 @@ login/cookies.pkl
 *.json
 screenlog.*
 uni_all_retriever
+model/
