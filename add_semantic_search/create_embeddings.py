@@ -39,20 +39,20 @@ print(f"Number of unique pages: {len(data)}")
 
 embeddings = OllamaEmbeddings(model="qwen3-embedding")
 
-docs = []
-save_docs = []
 
-def process_document(entry) -> tuple[list, list[Document]]:
+def process_document(entry) -> tuple[list, list[Document], tuple[str, str]]:
     '''
     Process a single document entry by splitting it into chunks and creating Document objects.
 
     Args:
         entry (tuple): A tuple containing the document ID and the full document text.
     Returns:
-        tuple[list, list[Document]]: A tuple containing a list of chunk data and a list of Document objects.
+        tuple[list, list[Document], tuple[str, str]]: A tuple containing a list of chunk data and a list of Document objects.
     '''
     doc_id = entry[0]
     full_doc = entry[1]
+
+    compl_doc = (doc_id, full_doc)
 
     save_list = []
     chunk_list = []
@@ -66,7 +66,7 @@ def process_document(entry) -> tuple[list, list[Document]]:
         )
         chunk_list.append(doc)
 
-    return save_list, chunk_list
+    return save_list, chunk_list, compl_doc
 
 def process_all_documents(data, num_workers=None):
     if num_workers is None:
@@ -77,11 +77,14 @@ def process_all_documents(data, num_workers=None):
 
         save_docs = []
         docs = []
-        for saves, chunks in results:
+        full_docs = []
+
+        for saves, chunks, compl_doc in results:
             save_docs.extend(saves)
             docs.extend(chunks)
+            full_docs.append(compl_doc)
 
-    return save_docs, docs
+    return save_docs, docs, full_docs
 
 '''
 for entry in data:
@@ -95,9 +98,13 @@ for entry in data:
 '''
 
 print(f'Workers: {multiprocessing.cpu_count()}')
-save_docs, docs = process_all_documents(data)
+save_docs, docs, full_docs = process_all_documents(data)
 
 print("Saving files...")
+
+with open('full_docs.json', 'w') as f:
+    json.dump(full_docs, f)
+
 with open('docs_all.json', 'w') as f:
     json.dump(save_docs, f)
 

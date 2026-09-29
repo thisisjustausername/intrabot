@@ -27,7 +27,7 @@ from rich.live import Live
 from rich.markdown import Markdown
 from typing_extensions import TypedDict
 
-from add_semantic_search.lexical_search import search_bm25
+from add_semantic_search.lexical_search import search_bm25, get_full_page
 
 warnings.filterwarnings('ignore', category=LangChainBetaWarning)
 
@@ -70,7 +70,7 @@ model = ChatOllama(
     temperature=0.5,
     num_predict=4096,
     num_ctx=262144,
-    streaming=True # type: ignore
+    streaming=True
 )
 
 ################################################################
@@ -92,6 +92,7 @@ def replacer(match):
 async def search_intranet(query: str, k: int = 5) -> list[str]:
     '''
     Durchsucht die internen Intranet-Websiten auf passende Ergebnisse.
+    Es werden Chunks der passenden Seiten zurückgegeben´. Falls Du zu einem Resultat, die gesamte Seite erhalten willst, rufe das Tool full_page mit dem URL zu dieser Seite auf.
     Du kannst immer nur nach EINEM Aufruf pro Anfrage suchen. Für mehrere Aufrufe stelle mehrere Anfragen. Stelle die Anfragen NACHEINANDER, sonst treten Fehler auf. Sende immer nur eine Suchanfrage und warte auf die Antwort bevor du die nächste Anfrage sendest.
 
     Args:
@@ -107,6 +108,19 @@ async def search_intranet(query: str, k: int = 5) -> list[str]:
         return ['Keine passenden Informationen gefunden.']
     return matches
 
+
+@tool
+async def full_page(url: str) -> str:
+    '''
+    Erhalte die komplette und vollständige Seíte zu einer URL, die von search_intranet zurückgegeben wurde. Verwende diese Funktion nur, wenn Du die gesamte Seite benötigst. Die URL muss von search_intranet stammen, sonst wird keine Seite gefunden.
+
+    Args:
+        url (str):Die URL für die Website
+
+    Returns:
+        str: Der komplette Seiteninhalt
+    '''
+    return get_full_page(url)
 
 
 # TODO: instead of using trafilatula, convert to markdown
@@ -189,7 +203,7 @@ class MessagesState(TypedDict):
 
 
 # Augment the LLM with tools
-tools = [search_intranet, dirty_search] # , suche_uni_augsburg]
+tools = [search_intranet, dirty_search, full_page] # , suche_uni_augsburg]
 tools_by_name = {tool.name: tool for tool in tools}
 model_with_tools = model.bind_tools(tools)
 
@@ -202,7 +216,9 @@ Nutze das Suchwerkzeug bei Fragen zu Informationen aus dem Intranet.
 Antworte auf Deutsch und in schönem Markdown-Format. Für Aufzählungen sind besonders Tabellen aber auch Listen erwünscht.
 
 Regeln:
-    - Verwende das Suchwerkzeug search_intranet, um Informationen zufinden
+    - Verwende das Suchwerkzeug search_intranet, um Informationen zu finden
+    - Wenn du zu einem Resultat von search_intranet die gesamte Seite benötigst, verwende das Tool full_page mit der URL zu dieser Seite.
+    - Wenn search_intranet keine Ergebnisse liefert, verwende das Tool dirty_search, um Informationen
     - Antworte auf Deutsch und in schönem Markdown-Format
     - Führe die Tools nur NACHEINANDER aus, nicht gleichzeitig. Warte auf die Antwort des Tools, bevor du das nächste Tool aufrufst.
     - Entnehme dabei das Wissen aus der ANTWORT DES SEARCH-TOOLS
@@ -214,6 +230,7 @@ Regeln:
 
 Tools:
     - search_intranet: Durchsucht die internen Intranet-Websiten und die offiziellen Websiten der Universität Augsburg auf passende Ergebnisse. (Search-Tool)
+    - full_page: Liefert die komplette und vollständige Seite zu einer URL, die von search_intranet zurückgegeben wurde. (Search-Tool)
     - dirty_search: Durchsucht die offiziellen Websiten der Universität Augsburg auf passende Ergebnisse. (Search-Tool)
         * Verwende dirty_search als Fallback, wenn search_intranet nichts findet.
         * dirty_search findet nur öffentlich zugängliche Websites der Universität Augsburg und ist geeignet für Queries, die Typos enthalten.
