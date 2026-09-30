@@ -9,7 +9,7 @@ import html_to_markdown as htm
 import httpx
 from langchain.tools import tool
 
-from add_search.lexical_search import get_full_page, search_bm25
+from search.lexical_search import get_full_page, search_bm25
 
 options = htm.ConversionOptions(exclude_selectors=['script', 'style', 'noscript', 'footer', 'nav'])
 

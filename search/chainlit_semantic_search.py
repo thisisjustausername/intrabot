@@ -3,8 +3,8 @@
 
 import chainlit as cl
 
-# from add_search.raw_semantic_search import search_urls
-from add_search.lexical_search import search_bm25
+# from search.raw_semantic_search import search_urls
+from search.lexical_search import search_bm25
 
 
 @cl.on_message

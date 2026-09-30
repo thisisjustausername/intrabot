@@ -31,8 +31,8 @@ COOKIE_PATH=base_path_to_project_parent_folder/intrabot/login/cookies.pkl
 ```bash
 python3 -m login.login
 python3 -m crawl.crawl_intranet
-python3 -m add_search.create_embeddings
-python3 -m add_search.add_lexical_search
+python3 -m search.create_embeddings
+python3 -m search.add_lexical_search
 ```
 
 4. Finally run your intrabot chatbot with the first command or intraSearch with the second command
@@ -40,7 +40,7 @@ python3 -m add_search.add_lexical_search
 chainlit run chatbot/graph.py --host 127.0.0.1 --port 8001
 ```
 ```bash
-python3 -m add_search.raw_semantic_search
+python3 -m search.raw_semantic_search
 ```
 
 # IMPORTANT TODOS
