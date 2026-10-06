@@ -10,6 +10,10 @@ langchain_chroma
 langchain_openai
 langgraph
 tqdm
-trafilatura
 langchain_text_splitters
 bm25
+mineru
+asyncpg
+SQLAlchemy
+greenlet
+sqlalchemy[asyncio]
