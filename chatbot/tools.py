@@ -2,7 +2,9 @@
 Create tools for chatbot
 '''
 
+import json
 import re
+from typing import Literal
 from urllib.parse import urljoin
 
 import html_to_markdown as htm
@@ -21,30 +23,51 @@ def replacer(match):
 
 
 @tool
-async def search_intranet(query: str, k: int = 5) ->str:
+async def search_intranet(query: str, k: int = 5) -> str:
     '''
     Durchsucht die internen Intranet-Websiten auf passende Ergebnisse.
     Es werden Chunks der passenden Seiten zurückgegeben´. Falls Du zu einem Resultat, die gesamte Seite erhalten willst, rufe das Tool full_page mit dem URL zu dieser Seite auf.
-    Du kannst immer nur nach EINEM Aufruf pro Anfrage suchen. Für mehrere Aufrufe stelle mehrere Anfragen. Stelle die Anfragen NACHEINANDER, sonst treten Fehler auf. Sende immer nur eine Suchanfrage und warte auf die Antwort bevor du die nächste Anfrage sendest.
+    Du kannst immer nur nach EINEM Aufruf pro Anfrage suchen. Für mehrere Aufrufe stelle mehrere Anfragen. Stelle die Anfragen NACHEINANDER, sonst treten Fehler auf. Nur Anfragen zu unterschiedlichen Seiten und Themen dürfen parallel gestellt werden. Sende immer nur eine Suchanfrage und warte auf die Antwort bevor du die nächste Anfrage sendest.
+    EINSATZGEBIET:
+    - Alle Fragen zum Intranet
+    - Mitarbeiterinformationen
+    - Interne Prozesse und Richtlinien
+    HINWEISE:
+    - Erstes Tool für alle Intranet-Fragen
+    - Falls gesamte Seite benötigt wird: full_page mit der URL verwenden
+    - Ergebnisse enthalten Links zur vollständigen Seite
 
     Args:
         query (str): Die Suchanfrage, die Informationen oder eine Frage enthält.
         k (int): Die Anzahl der zurückzugebenden relevanten Ergebnisse.
 
     Returns:
-        str]: Die relevantesten Informationen aus der Website mit URL in der ersten Zeile, Ähnlichkeitswert in der zweiten Zeile und Inhalt darunter. Wenn keine relevanten Informationen gefunden wurden, wird eine entsprechende Nachricht angegeben. Suchresultate werden durch '\n\n---\n\n' getrennt.
+        str: Die relevantesten Informationen aus der Website mit URL in der ersten Zeile, Ähnlichkeitswert in der zweiten Zeile und Inhalt darunter. Wenn keine relevanten Informationen gefunden wurden, wird eine entsprechende Nachricht angegeben. Suchresultate werden durch '\n\n---\n\n' getrennt.
     '''
     # matches = db.similarity_search(query, k=k)
-    matches = [f'URL: {i[0]}\nSimilarity: {float(i[2])}\n\n{re.sub(r'\[([^\]]+)\]\(([^)]+)\)', replacer, i[1])}' for i in search_bm25(query, k=k)]
+    # matches = [f'URL: {i[0]}\nSimilarity: {float(i[2])}\n\n{re.sub(r'\[([^\]]+)\]\(([^)]+)\)', replacer, i[1])}' for i in search_bm25(query, k=k)]
+    matches = [{
+        'url': i[0],
+        'similarity': float(i[2]),
+        'content': re.sub(r"\[([^\]]+)\]\(([^)]+)\)", replacer, i[1])
+        } for i in search_bm25(query, k=k)]
     if not matches:
         return 'Keine passenden Informationen gefunden.'
-    return '\n\n---\n\n'.join(matches)
+    return json.dumps(matches)
+    # return '\n\n---\n\n'.join(matches)
 
 
 @tool
 async def full_page(url: str) -> str:
     '''
     Erhalte die komplette und vollständige Seíte zu einer URL, die von search_intranet zurückgegeben wurde. Verwende diese Funktion nur, wenn Du die gesamte Seite benötigst. Die URL muss von search_intranet stammen, sonst wird keine Seite gefunden.
+    Rufe dieses Tool NUR NACHEINANDER auf, da es sehr lange Outputs hat.
+    EINSATZGEBIET:
+    - Wenn Suchergebnisse zu kurz sind
+    - Wenn der gesamte Seiteninhalt benötigt wird
+    HINWEISE:
+    - NUR mit URLs aus search_intranet verwenden
+    - Sonst wird keine Seite gefunden
 
     Args:
         url (str):Die URL für die Website
@@ -62,12 +85,22 @@ async def dirty_search(query: str, k: int = 3) -> str:
     Findet Seiten der Uni Augsburg mit Informationen zu dem Query.
     Verwende diese Suche nur als Fallback, wenn search_intranet nichts findet.
     Diese Suche greift nur auf den öffentlichen Teil der Website zu, funktioniert aber besonders gut, wenn Tippfehler in der Suchanfrage vorhanden sind.
+    EINSATZGEBIET:
+    - Fallback, wenn search_intranet nichts findet
+    - Bei Queries mit Tippfehlern (typo-tolerant)
+    - Für öffentlich zugängliche Websites nur
+    HINWEISE:
+    - Ergebnisse werden durch '\n\n---\n\n' getrennt
+    - Nur öffentlich zugängliche Seiten
+    - Typo-tolerant
+    - Nicht für Intranet-Inhalte geeignet
+    - Bei HTTP-Fehler wird "Fehler bei der Suche" zurückgegeben
 
     Args:
         query (str): Die Suchanfrage, die Informationen oder eine Frage enthält. Mache deutlich, dass sich das Query auf die Universität Augsburg bezieht.
         k (int): Die Anzahl der zurückzugebenden relevanten Ergebnisse. Empfohlen sind 5 bis 7, da die Rückgabe sonst sehr lang werden kann.
     Returns:
-        str: Die relevantesten Informationen von der Website der Universität Augsburg, die der Anfrage entsprechen. Wenn keine relevanten Informationen gefunden werden, wird eine entsprechende Nachricht zurückgegeben. Suchresultate werden durch '\n\n---\n\n' getrennt.
+        str: Die relevantesten Informationen von der Website der Universität Augsburg, die der Anfrage entsprechen. Wenn keine relevanten Informationen gefunden werden, wird eine entsprechende Nachricht zurückgegeben. Serialisiertes JSON-Format mit den Ergebnissen.
     '''
     res = []
     try:
@@ -120,4 +153,34 @@ async def dirty_search(query: str, k: int = 3) -> str:
         results.append(f'Quelle: {url}\n{text}')
     if not results:
         return 'Keine passenden Informationen gefunden.'
-    return '\n\n---\n\n'.join(results)
+    return json.dumps(results)
+
+
+@tool
+async def get_tool_information(tool_name: Literal[
+    'search_intranet',
+    'dirty_search',
+    'full_page',
+    'search_studiengang',
+    'get_studiengang_modulhandbuch',
+    'get_modul',
+    'get_klausur',
+    'get_klausur_by_mongodb_id',
+    'get_modul_by_mongodb_id',
+    'get_modulhandbuch_by_mongodb_id',
+    'get_datum'
+]) -> str:
+    '''
+    Gibt Informationen zu den verfügbaren Tools zurück, die für die Beantwortung von Fragen verwendet werden können.
+    Die Antwort is unterteilt in Anwendungsbereiche, Eingabeparameter und Rückgabewerte.
+    Verwende dieses Tool, wenn du andere Tools verwenden willst, die eine komplexere Anwendung haben.
+
+    Args:
+        tool_name (str): Der Name des Tools, zu dem Informationen abgerufen werden sollen.
+    Returns:
+        str: Eine Beschreibung des Tools, einschließlich Anwendungsbereich, Eingabeparameter und Rückgabewerte.
+    '''
+
+    with open('chatbot/tool_descriptions.json', 'r') as f:
+        tool_descriptions = json.load(f)
+    return tool_descriptions.get(tool_name, 'Keine Informationen zu diesem Tool gefunden.')
