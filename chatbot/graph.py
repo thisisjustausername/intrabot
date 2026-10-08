@@ -24,7 +24,7 @@ from langgraph.graph import END, START, StateGraph, add_messages
 from pydantic import SecretStr
 from typing_extensions import TypedDict
 
-from chatbot.tools import dirty_search, full_page, search_intranet
+from chatbot.tools import dirty_search, full_page, search_intranet, get_tool_information
 from mhbai.student_counselor.langgraph.tools import (
     search_studiengang,
     get_studiengang_modulhandbuch,
@@ -106,7 +106,20 @@ class MessagesState(TypedDict):
 
 
 # Augment the LLM with tools
-tools = [search_intranet, dirty_search, full_page, search_studiengang, get_studiengang_modulhandbuch, get_modul, get_klausur, get_klausur_by_mongodb_id, get_modul_by_mongodb_id, get_modulhandbuch_by_mongodb_id, get_datum] # , suche_uni_augsburg]
+tools = [
+        search_intranet,
+        dirty_search,
+        full_page,
+        search_studiengang,
+        get_studiengang_modulhandbuch,
+        get_modul,
+        get_klausur,
+        get_klausur_by_mongodb_id,
+        get_modul_by_mongodb_id,
+        get_modulhandbuch_by_mongodb_id,
+        get_datum,
+        get_tool_information
+] # , suche_uni_augsburg]
 tools_by_name = {tool.name: tool for tool in tools}
 model_with_tools = model.bind_tools(tools, parallel_tool_calls=True)
 
@@ -118,6 +131,7 @@ Falls die Frage keine Suchergebnisse liefert und nichts mit dem Intranet zu tun 
 Nutze das Suchwerkzeug bei Fragen zu Informationen aus dem Intranet.
 Antworte auf Deutsch und in schönem Markdown-Format. Für Aufzählungen sind besonders Tabellen aber auch Listen erwünscht.
 Du kannst mehrere Argumente pro Tool-Aufruf verwenden.
+Verwende NIEMALS den gleichen Tool-Aufruf mit identischen Parametern parallel, da das Resultat sich nicht unterscheiden wird.
 
 Regeln:
     - Verwende das Suchwerkzeug search_intranet, um Informationen zu finden
@@ -132,6 +146,7 @@ Regeln:
     - Verwende NIE Informationen, die nicht aus dem Search-Tool stammen. Wenn du keine Informationen findest, teile dies in deiner Antwort mit.
     - Teile die URLs, zu denen Du Informationen aus dem Search-Tool verwendest.
     - Gebe NIEMALS MongoDB-IDs aus.
+    - Rufe NIEMALS ein Tool mehr als einmal mit denselben Parametern auf, da das Resultat sich nicht unterscheiden wird.
 
 Tools:
     - search_intranet: Durchsucht die internen Intranet-Websiten und die offiziellen Websiten der Universität Augsburg auf passende Ergebnisse. (Search-Tool)
@@ -154,56 +169,17 @@ Tools:
             NUR die aufgeführten Punkte sind in den Antworten enthalten.
             Es wird empfohlen, NUR DEN STUDIENGANGSNAMEN im Query zu suchen, je nach Anfrage können auch die anderen Bereiche abgefragt werden.
     - get_klausur: Gibt Informationen zu passenden Klausuren zurück.
-            Du kannst Informationen aus folgenden Bereichen zur Suche verwenden und diese sind immer in der Antwort enthalten:
-                * name: Name der Klausur
-                * description: Beschreibung der Klausur
-                * preparation: Vorbereitung auf die Klausur
-                * type: Typ der Klausur z.B. mündlich, schriftlich, Hausarbeit, Seminararbeit, ...
-                * duration: Dauer der Klausur
-                * frequency: Häufigkeit der Klausur, z.B. einmal pro Semester, einmal pro Jahr, ...
-                * deadline: Deadline der Klausur
-                * graded: Ob die Klausur benotet ist
-                * id: ID der Klausur, diese muss nicht eindeutig sein
-                * portion_of_grade: Anteil an der Note der Klausur in dem verwendeten Modul
-            Du musst immer mindestens einen semantischen Parameter (name, description, preparation, type, duration, frequency) angeben, um die Suche zu starten. Die anderen Parameter sind optional und können als Filter verwendet werden.
-    - get_modul: Gibt Informationen zu passenden Modulen zurück.
-        Du kannst Informationen aus folgenden Bereichen zur Suche verwenden und diese sind immer in der Antwort enthalten:
-            * name: Name des Moduls
-            * content: Inhalt des Moduls
-            * goals: Ziele des Moduls
-            * lecturer: Dozent des Moduls
-            * prerequisites: Voraussetzungen des Moduls
-            * faculty_chair: Lehrstuhl des Moduls
-            * workloads: Arbeitsbelastung des Moduls
-            * success_requirements: Erfolgsvoraussetzungen des Moduls
-            * exam_outline: Prüfungsordnung des Moduls
-            * mandatory: Ob das Modul verpflichtend ist
-            * module_code: Modulcode des Moduls
-            * ects: ECTS-Punkte des Moduls
-            * available_semesters: Verfügbare Semester des Moduls
-            * recommended_semester_span: Empfohlene Semesteranzahl des Moduls
-            * languages: Sprachen des Moduls
-            * international: Ob das Modul international ist
-            * weekly_hours: Wöchentliche Stunden des Moduls
-            * workload_hours: Arbeitsstunden des Moduls
-            * exams: Prüfungen des Moduls
-        Verwende immer mindestens einen semantischen Parameter (name, content, goals, lecturer, prerequisites, faculty_chair, workloads, success_requirements, exam_outline), um die Suche zu starten. Die anderen Parameter sind optional und können als Filter verwendet werden.
-    - get_studiengang_modulhandbuch: Gibt das Modulhandbuch für einen bestimmten Studiengang zurück. Verwende diese Suche immer, wenn du Informationen zu Module oder dem Aufbau des Studiengangs benötigst.
-        Um das aktuelle Modulhandbuch zu finden, kannst du start_semester als Filter verwenden. Die ersten 4 Ziffern sind das Anfangsjahr, die letzte Ziffer gibt an, ob es sich um das Wintersemester (1) handelt. So wird das Wintersemester 2026/2ß27 beispielsweise zu 20261. Es wird empfohlen, das aktuelle Modulhandbuch zu verwenden oder nachzufragen, in welchem Semester das Studium gestartet wurde.
-        Du kannst Informationen aus folgenden Bereichen zur Suche verwenden und diese sind immer in der Antwort enthalten:
-            * name: Name des Modulhandbuchs
-            * description: Ab wann man den Studiengang studieren kann. NICHT Inhalt des Studiengangs.
-            * faculties: Fakultäten des Studiengangs
-            * path: Pfad des Modulhandbuchs
-            * start_semester: Startsemester des Modulhandbuchs. SEHR WICHTIG, du kannst einen Zeitraum, z.B. (20241, 20250) also WS 2024/25 bis SS 2025, oder ein einzelnes Semester, z.B. 20241, angeben.
-            * k: Anzahl der Suchresultate. Es wird maximal der Wert 3 empfohlen, da die Dokumente sehr lang sind.
-        Verwende immer mindestens einen semantischen Parameter (name, description, faculties, path), um die Suche zu starten. Der Parameter start_semester ist optional und kann als Filter verwendet werden.
+    - get_modul: Gibt Informationen zu passenden Modulen zurück. Dies bildet nur einen groben Überblick, um Details über einzelne Module zu erlangen, verwenden get_modul_by_mongodb_id.
+    - get_studiengang_modulhandbuch: Gibt das Modulhandbuch für einen bestimmten Studiengang zurück. Verwende diese Suche immer, wenn du Informationen zu Module oder dem Aufbau des Studiengangs benötigst. Dies bildet nur einen groben Überblick, um Details über einzelne Modulhandbücher zu erlangen, verwenden get_modulhandbuch_by_mongodb_id.
         Rufe diese Suche nie mehrmals in einem ähnlichen Thema auf, da die Ergebnisse sehr ähnlich sind!!!
     - get_datum: Gibt das aktuelle Datum zurück. Du kannst das aktuelle Datum verwenden, um die Suche nach Studiengängen zu filtern, die in der Vergangenheit liegen oder in der Zukunft stattfinden.
     Verwende die folgenden Tools, um nach Klausuren, Modulen oder Studiengängen zu suchen, wenn du deren MongoDB-ID kennst (die MongoDB-IDs findest du durch die Tools get_klausur, get_modul oder get_studiengang_modulhandbuch)
     - get_modulhandbuch_by_mongodb_id: Gibt ausführliche Informationen zu einem Modulhandbuch anhand der MongoDB-ID zurück.
     - get_modul_by_mongodb_id: Gibt Informationen zu einem Modul anhand der MongoDB-ID zurück.
     - get_klausur_by_mongodb_id: Gibt Informationen zu einer Klausur anhand der MongoDB-ID zurück.
+
+    WICHTIG:
+    - get_tool_informatino: Gibt ausführliche Informationen über ein Tool zurück. Wenn du ein Tool wie get_studiengang_modulhandbuch, get_modul, get_klausur verwendest oder auch get_modulhandbuch_by_mongodb_id, get_modul_by_mongodb_id, get_klausur_by_mongodb_id, dann sagt dir dieses Tool, wann du die Tools anwenden kannst, welche Tools du davor oder danach anwenden solltest, was inputs und outputs sind und was beachtet werden muss.
 '''
 # - Führe die Tools nur NACHEINANDER aus, nicht gleichzeitig. Warte auf die Antwort des Tools, bevor du das nächste Tool aufrufst.
 
