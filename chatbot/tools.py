@@ -9,11 +9,17 @@ from urllib.parse import urljoin
 
 import html_to_markdown as htm
 import httpx
+from langchain.messages import HumanMessage
 from langchain.tools import tool
 
+from chatbot.mongodb_graph import (
+    create_langgraph_agent_with_enhanced_memory as create_mql_tool,
+)
 from search.lexical_search import get_full_page, search_bm25
 
 options = htm.ConversionOptions(exclude_selectors=['script', 'style', 'noscript', 'footer', 'nav'])
+
+mql = create_mql_tool()
 
 
 def replacer(match):
@@ -156,6 +162,39 @@ async def dirty_search(query: str, k: int = 3) -> str:
     return json.dumps(results)
 
 
+@tool
+async def query_database(question: str) -> str:
+    '''
+    Führt eine Abfrage in der MongoDB-Datenbank aus und gibt die Ergebnisse zurück.
+    Gesucht werden können Informationen zu Modulhandbüchern, Modulen und Klausuren.
+    Eingegeben wird eine normale Frage, die Elemente aus einer der drei Collections abfrägt.
+    Falls du allerdings Infos aus einer Collection für die Anfrage aus einer anderen Collection benötigst, musst du zwei nacheinanderfolgende Anfragen stellen. Um konkrete Ereignisse zu suchen, verwende gerne die eindeutige MongoDB_ID, meist zu finden als _id.
+    Erwähne kurz, wofür du die Informationen benötigst, damit das generierte Query besser auf deine Anfrage zugeschnitten werden kann.
+    EINSATZGEBIET:
+    - Abfragen von Daten aus der MongoDB-Datenbank
+    HINWEISE:
+    - Die Abfrage muss als normale Frage formuliert werden, die Elemente aus einer der drei Collections abfragt.
+    - Die Ergebnisse werden als JSON-String zurückgegeben
+
+    Args:
+        query (str): Die Abfrage in normaler Sprache, die Informationen zu Modulhandbüchern, Modulen oder Klausuren enthält.
+    Returns:
+        str: Die Ergebnisse der Abfrage als JSON-String.
+    '''
+    out = await mql.ainvoke({'messages': [HumanMessage(content=question)]}, config={"callbacks": [], "tags": ["nostream"]})
+    results = [m for m in out["messages"]
+                   if isinstance(m, ToolMessage) and m.name == "mongodb_query"]
+    if not results:
+        return json.dumps({"error": "Es wurde kein Query ausgeführt", "detail": str(out["messages"][-1].content)[:2000]})
+
+    last_msg = results[-1]
+    if getattr(last_msg, 'status', None) == 'error':
+        return json.dumps({"error": "Fehler bei der Abfrage", "detail": str(last_msg.content)[:2000]})
+    print(last_msg.content)
+    return json.dumps(last_msg.content)
+
+
+@DeprecationWarning
 @tool
 async def get_tool_information(tool_name: Literal[
     'search_intranet',

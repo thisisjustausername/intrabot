@@ -56,6 +56,17 @@ class ThreadedCrawler:
             clean_url += f'?{parsed.query}'
         return clean_url
 
+    def pdf_to_markdown(data: bytes) -> str:
+        '''
+        Convert PDF bytes to Markdown format.
+
+        Args:
+            data (bytes): The PDF file content in bytes.
+
+        Returns:
+            str: The converted Markdown content.
+        '''
+        result = parse(str)
 
     def worker(self):
         while True:
@@ -66,7 +77,23 @@ class ThreadedCrawler:
                     return
                 response = self.session.get(url, timeout=self.timeout, allow_redirects=True)
                 content_type = response.headers.get('Content-Type', '')
-                if response.status_code != 200 or 'text/html' not in content_type:
+                if response.status_code != 200:
+                    continue
+                if content_type == 'application/pdf':
+                    MAX_BYTES = 100 * 1024 * 1024  # 100 MB
+                    # Stream the body with a size limit
+                    chunks, size = [], 0
+                    for chunk in response.iter_content(64 * 1024):
+                        size += len(chunk)
+                        if size > MAX_BYTES:
+                            raise ValueError(f"PDF too large: {url}")
+                        chunks.append(chunk)
+                    data = b"".join(chunks)
+
+                    if not data.startswith(b"%PDF-"):
+                        raise ValueError(f"Claimed PDF but bad magic bytes: {url}")
+
+                elif 'text/html' not in content_type:
                     continue
                 markdown = htm.convert(response.text, options=self.options)
                 page_url = response.url or url  # Use the final URL after redirects if available

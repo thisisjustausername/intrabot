@@ -8,6 +8,7 @@ langchain_core
 langchain_ollama
 langchain_chroma
 langchain_openai
+langchain-mongodb
 langgraph
 tqdm
 langchain_text_splitters
@@ -17,3 +18,5 @@ asyncpg
 SQLAlchemy
 greenlet
 sqlalchemy[asyncio]
+langgraph-checkpoint-mongodb
+msgpack

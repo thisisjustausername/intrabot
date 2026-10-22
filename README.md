@@ -40,7 +40,7 @@ We provide a dummy .env file:
 4. Start LLM-Backend with vLLM<br/>
   For `tensor-parallel-size` specify the amount of individual GPUs you plan on using.
     ```bash
-    python -m vllm.entrypoints.openai.api_server --model nvidia/Qwen3.8-27B-NVFP4 --max-model-len 131072 --port 8000 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --tensor-parallel-size 2
+    python -m vllm.entrypoints.openai.api_server --model nvidia/Qwen3.8-27B-NVFP4 --max-model-len 262144 --port 8000 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --tensor-parallel-size 2
     ```
     In case you do not want to restart vLLM on every bootup, set a systemd-service as followed.
     ```ini
@@ -55,7 +55,7 @@ We provide a dummy .env file:
     Environment="PATH=<WORKING DIRECTORY OF INTRABOT PROJECT>/venv/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     Environment="VIRTUAL_ENV=<WORKING DIRECTORY OF INTRABOT PROJECT>/venv"
     Environment="CUDA_HOME=/usr/local/cuda"
-    ExecStart=<WORKING DIRECTORY OF INTRABOT PROJECT>/venv/bin/python3 -m vllm.entrypoints.openai.api_server --model nvidia/Qwen3.8-27B-NVFP4 --max-model-len 131072 --port 8000 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --tensor-parallel-size 2
+    ExecStart=<WORKING DIRECTORY OF INTRABOT PROJECT>/venv/bin/python3 -m vllm.entrypoints.openai.api_server --model nvidia/Qwen3.8-27B-NVFP4 --max-model-len 262144 --port 8000 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --tensor-parallel-size 2
     Restart=always
     
     [Install]

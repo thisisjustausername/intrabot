@@ -2,15 +2,15 @@
 
 
 Run using: chainlit run chatbot/graph.py --host 127.0.0.1 --port 8001
-Serve vllm as followed: python -m vllm.entrypoints.openai.api_server --model nvidia/Qwen3.8-27B-NVFP4 --max-model-len 131072 --port 8000 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --tensor-parallel-size 2
+Serve vllm as followed: python -m vllm.entrypoints.openai.api_server --model nvidia/Qwen3.8-27B-NVFP4 --max-model-len 262144 --port 8000 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --tensor-parallel-size 2
 '''
 
 
+import asyncio
 import os
 import warnings
 from typing import Annotated, Literal
 from urllib.parse import quote_plus
-import asyncio
 
 import chainlit as cl
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
@@ -21,19 +21,25 @@ from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph, add_messages
+from mhbai.student_counselor.langgraph.tools import (
+    get_datum,
+    get_klausur,
+    get_klausur_by_mongodb_id,
+    get_modul,
+    get_modul_by_mongodb_id,
+    get_modulhandbuch_by_mongodb_id,
+    get_studiengang_modulhandbuch,
+    search_studiengang,
+)
 from pydantic import SecretStr
 from typing_extensions import TypedDict
 
-from chatbot.tools import dirty_search, full_page, search_intranet, get_tool_information
-from mhbai.student_counselor.langgraph.tools import (
-    search_studiengang,
-    get_studiengang_modulhandbuch,
-    get_modul,
-    get_klausur,
-    get_klausur_by_mongodb_id,
-    get_modul_by_mongodb_id,
-    get_modulhandbuch_by_mongodb_id,
-    get_datum
+from chatbot.tools import (
+    dirty_search,
+    full_page,
+    get_tool_information,
+    query_database,
+    search_intranet,
 )
 
 # from rich.console import Console
@@ -69,7 +75,7 @@ db = Chroma(
         )
 '''
 
-# serve vllm as followed: python -m vllm.entrypoints.openai.api_server --model nvidia/Qwen3.8-27B-NVFP4 --max-model-len 131072 --port 8000 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --tensor-parallel-size 2
+# serve vllm as followed: python -m vllm.entrypoints.openai.api_server --model nvidia/Qwen3.8-27B-NVFP4 --max-model-len 262144 --port 8000 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --tensor-parallel-size 2
 model = ChatOpenAI(
     model=mdl,
     temperature=0.5,
@@ -88,8 +94,8 @@ model = ChatOllama(
     model=mdl,
     temperature=0.5,
     num_predict=4096,
-    # num_ctx=262144,
-    num_ctx=131072,
+    num_ctx=262144,
+    # num_ctx=131072,
     streaming=True
 )
 '''
@@ -111,14 +117,23 @@ tools = [
         dirty_search,
         full_page,
         search_studiengang,
-        get_studiengang_modulhandbuch,
-        get_modul,
+        # get_studiengang_modulhandbuch,
+        # get_modul,
+        # get_klausur,
+        # get_klausur_by_mongodb_id,
+        # get_modul_by_mongodb_id,
+        # get_modulhandbuch_by_mongodb_id,
+        get_datum,
+        # query_database,
+
+
         get_klausur,
         get_klausur_by_mongodb_id,
+        get_modul,
         get_modul_by_mongodb_id,
         get_modulhandbuch_by_mongodb_id,
-        get_datum,
-        get_tool_information
+        get_studiengang_modulhandbuch,
+        # get_tool_information
 ] # , suche_uni_augsburg]
 tools_by_name = {tool.name: tool for tool in tools}
 model_with_tools = model.bind_tools(tools, parallel_tool_calls=True)
@@ -176,10 +191,13 @@ Tools:
     Verwende die folgenden Tools, um nach Klausuren, Modulen oder Studiengängen zu suchen, wenn du deren MongoDB-ID kennst (die MongoDB-IDs findest du durch die Tools get_klausur, get_modul oder get_studiengang_modulhandbuch)
     - get_modulhandbuch_by_mongodb_id: Gibt ausführliche Informationen zu einem Modulhandbuch anhand der MongoDB-ID zurück.
     - get_modul_by_mongodb_id: Gibt Informationen zu einem Modul anhand der MongoDB-ID zurück.
-    - get_klausur_by_mongodb_id: Gibt Informationen zu einer Klausur anhand der MongoDB-ID zurück.
+    - get_klausur_by_mongodb_id: Gibt Informationen zu einer Klausur anhand der MongoDB-ID zurück.'''
 
-    WICHTIG:
-    - get_tool_informatino: Gibt ausführliche Informationen über ein Tool zurück. Wenn du ein Tool wie get_studiengang_modulhandbuch, get_modul, get_klausur verwendest oder auch get_modulhandbuch_by_mongodb_id, get_modul_by_mongodb_id, get_klausur_by_mongodb_id, dann sagt dir dieses Tool, wann du die Tools anwenden kannst, welche Tools du davor oder danach anwenden solltest, was inputs und outputs sind und was beachtet werden muss.
+
+'''
+- query_database: Durchsucht eine Datenbank mit detaillierten Informationen zu dem Aufbau von Studiengängen (mhbs), Modulen (modules) und Klausuren (exams). Die Datenbank enthält Informationen zu Modulhandbüchern, Modulen und Klausuren, die in der Vergangenheit, Gegenwart und Zukunft stattfinden.
+    Um komplizierte Informationen zwischen den drei Collections mhbs, modules und exams zu erhalten, formuliere eine Anfrage für jede benötigte Collection und führe diese getrennt aus. OFt erhältst du Informationen und MongoDB_IDs aus einer Anfrage, die du dann in der nächsten Anfrage in der nächsten Collection verwenden kannst und sollst.
+    Die Anfrage wird in normaler Sprache formuliert und sollte zudem eine ganz kurze Info enthalten, wofür das Result benötigt wird.
 '''
 # - Führe die Tools nur NACHEINANDER aus, nicht gleichzeitig. Warte auf die Antwort des Tools, bevor du das nächste Tool aufrufst.
 
