@@ -37,7 +37,7 @@ from typing_extensions import TypedDict
 from chatbot.tools import (
     dirty_search,
     full_page,
-    get_tool_information,
+    # get_tool_information,
     query_database,
     search_intranet,
 )
@@ -60,7 +60,8 @@ conninfo = f"postgresql+asyncpg://{USERDB}:{PASSWORD}@{HOST}:{PORT}/{DBNAME}"
 
 mdl = 'qwen3.8:27b'
 mdl = 'nvidia/Qwen3.8-27B-NVFP4'
-
+mdl = 'nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-NVFP4'
+mdl = 'nemotron-3.5-super'
 ################################################################
 '''
 Initialize vector database and model
@@ -133,6 +134,7 @@ tools = [
         get_modul_by_mongodb_id,
         get_modulhandbuch_by_mongodb_id,
         get_studiengang_modulhandbuch,
+        query_database
         # get_tool_information
 ] # , suche_uni_augsburg]
 tools_by_name = {tool.name: tool for tool in tools}
@@ -162,6 +164,9 @@ Regeln:
     - Teile die URLs, zu denen Du Informationen aus dem Search-Tool verwendest.
     - Gebe NIEMALS MongoDB-IDs aus.
     - Rufe NIEMALS ein Tool mehr als einmal mit denselben Parametern auf, da das Resultat sich nicht unterscheiden wird.
+    - Für Module, Modulhandbücher (MHBs) und Klausuren verwende die Tools get_studiengang_modulhandbuch, get_modul, get_klausur, get_modulhandbuch_by_mongodb_id, get_modul_by_mongodb_id, get_klausur_by_mongodb_id und query_database (sowie für einen kurzen thematischen Überblick search_studiengang). Verwende diese Tools nur, wenn du die MongoDB-ID hast. Die MongoDB-IDs findest du durch die Tools get_klausur, get_modul oder get_studiengang_modulhandbuch.
+    - Wenn du entweder get_studiengang_modulhandbuch, get_modul oder get_klausur verwendest und dies keine Treffer liefert, verwende query_database.
+    - Wenn du query_database verwendest und dies keine Treffer liefert, verwende die Tools get_studiengang_modulhandbuch, get_modul oder get_klausur.
 
 Tools:
     - search_intranet: Durchsucht die internen Intranet-Websiten und die offiziellen Websiten der Universität Augsburg auf passende Ergebnisse. (Search-Tool)
@@ -188,6 +193,7 @@ Tools:
     - get_studiengang_modulhandbuch: Gibt das Modulhandbuch für einen bestimmten Studiengang zurück. Verwende diese Suche immer, wenn du Informationen zu Module oder dem Aufbau des Studiengangs benötigst. Dies bildet nur einen groben Überblick, um Details über einzelne Modulhandbücher zu erlangen, verwenden get_modulhandbuch_by_mongodb_id.
         Rufe diese Suche nie mehrmals in einem ähnlichen Thema auf, da die Ergebnisse sehr ähnlich sind!!!
     - get_datum: Gibt das aktuelle Datum zurück. Du kannst das aktuelle Datum verwenden, um die Suche nach Studiengängen zu filtern, die in der Vergangenheit liegen oder in der Zukunft stattfinden.
+    - query_database: Durchsucht die Datenbank nach Informationen zu Modulhandbüchern, Modulen und Klausuren. Das Tool ist sehr teuer, aber da man die Anfrage selbst generiert, kann man bestimmte Informationen und Bedingungen abfragen. Verwende dieses Tool, falls die Anfrage nicht mit get_klausur, get_modul oder get_studiengang_modulhandbuch erledigt werden kann, da die Anfrage nicht passen würde. Es ersetzt diese Tools für komplexere Anfragen.
     Verwende die folgenden Tools, um nach Klausuren, Modulen oder Studiengängen zu suchen, wenn du deren MongoDB-ID kennst (die MongoDB-IDs findest du durch die Tools get_klausur, get_modul oder get_studiengang_modulhandbuch)
     - get_modulhandbuch_by_mongodb_id: Gibt ausführliche Informationen zu einem Modulhandbuch anhand der MongoDB-ID zurück.
     - get_modul_by_mongodb_id: Gibt Informationen zu einem Modul anhand der MongoDB-ID zurück.
@@ -226,7 +232,7 @@ sem = asyncio.Semaphore(10)
 async def run_tool(tool: dict):
     async with sem:
         try:
-            out = await tools_by_name[tool['name']].ainvoke(tool['args'])
+            out = await tools_by_name[tool['name']].ainvoke(tool['args']) # (tool['args'])
             if isinstance(out, Exception): raise out
             return out
         except Exception as e:
@@ -311,18 +317,18 @@ agent = agent_builder.compile(checkpointer=checkpointer)
 query = 'Wo finde ich Informationen zu Korruption?'
 
 def get_info(event) -> dict[str, str | None]:
-    info = {}
-    start = event.get('params', {}).get('data', ({},))
-    if isinstance(start, tuple) and len(start) > 0:
-        a = start[0].get('content', {})
-        b = start[0].get('delta', {})
-        info['type'] =  (a or b or {}).get('type', None)
-        info['content'] = (a or b or {}).get('text', None)
-        info['event'] = start[0].get('event', None)
-    else:
-       info['type'] = None
-       info['content'] = None
-       info['event'] = None
+    info = {'type': None, 'content': None, 'event': None}
+    data = event.get('params', {}).get('data', ((),))
+    if not (isinstance(data, tuple) and data and isinstance(data[0], dict)):
+        return info
+    first = data[0]
+    a = first.get('content') or {}
+    b = first.get('delta') or {}
+    block = a or b
+    if isinstance(block, dict):
+        info['type'] = block.get('type')
+        info['content'] = block.get('text')
+    info['event'] = first.get('event')
     return info
 
 

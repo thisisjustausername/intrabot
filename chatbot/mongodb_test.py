@@ -13,8 +13,8 @@ from langchain_mongodb.agent_toolkit.database import MongoDBDatabase
 from langchain_mongodb.agent_toolkit.toolkit import MongoDBDatabaseToolkit
 from langchain_ollama import OllamaEmbeddings
 from langchain_openai import ChatOpenAI
-from langfuse.langchain import CallbackHandler
 from langfuse import get_client
+from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.mongodb import MongoDBSaver
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -571,8 +571,11 @@ def demo_basic_queries():
         if i < len(queries):
             print("\n" + "=" * 50)
 
-'''
 
+if __name__ == "__main__":
+    demo_basic_queries()
+
+'''
 def demo_conversation_memory():
     """Demonstrate conversation memory across multiple related queries"""
     thread_id = f"conversation_demo_{uuid.uuid4().hex[:8]}"
@@ -874,7 +877,3 @@ def interactive_query():
         except Exception as e:
             print(f"❌ Error: {e}")
 '''
-
-
-if __name__ == "__main__":
-    demo_basic_queries()

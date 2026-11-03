@@ -2,6 +2,13 @@
 Semantically index the Uni Augsburg Intranet and create Chatbot for interaction.<br/>
 Build semantic search engine with chatbot for intranet of University of Augsburg.
 
+# IMPORTANT NOTICE
+Highest order TODOs
+* FILTER OUT PATH FROM MONGODB RESULTS FOR CHATBOT
+* Set maximum amount of tool calls
+* Fix search result order for mongodb (search informatik e.g.)
+* Nemotron uncertainty confidence besser angeben
+
 # Workflow
 Follow this workflow to successfully host your private intrabot instance.<br/>
 We advise to use a powerful NVIDIA-GPU for this workflow.
@@ -39,8 +46,18 @@ We provide a dummy .env file:
 
 4. Start LLM-Backend with vLLM<br/>
   For `tensor-parallel-size` specify the amount of individual GPUs you plan on using.
+  Note, that nemotron-3.5-super has a max model length of 1_000_000 tokens.
     ```bash
-    python -m vllm.entrypoints.openai.api_server --model nvidia/Qwen3.8-27B-NVFP4 --max-model-len 262144 --port 8000 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --tensor-parallel-size 2
+    vllm serve <WORKING DIRECTORY OF INTRABOT PROJECT>/model/nemotron-120B \
+      --served-model-name nemotron-3.5-super \
+      --trust-remote-code \
+      --tensor-parallel-size 2 \
+      --max-model-len 262144 \
+      --port 8000 \
+      --enable-auto-tool-choice \
+      --tool-call-parser qwen3_coder \
+      --reasoning-parser nemotron_v3 \
+    --limit-mm-per-prompt '{"image":2,"video":0}'
     ```
     In case you do not want to restart vLLM on every bootup, set a systemd-service as followed.
     ```ini
@@ -55,7 +72,7 @@ We provide a dummy .env file:
     Environment="PATH=<WORKING DIRECTORY OF INTRABOT PROJECT>/venv/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     Environment="VIRTUAL_ENV=<WORKING DIRECTORY OF INTRABOT PROJECT>/venv"
     Environment="CUDA_HOME=/usr/local/cuda"
-    ExecStart=<WORKING DIRECTORY OF INTRABOT PROJECT>/venv/bin/python3 -m vllm.entrypoints.openai.api_server --model nvidia/Qwen3.8-27B-NVFP4 --max-model-len 262144 --port 8000 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --tensor-parallel-size 2
+    ExecStart=<WORKING DIRECTORY OF INTRABOT PROJECT>/venv/bin/vllm serve <WORKING DIRECTORY OF INTRABOT PROJECT>/model/nemotron-120B --served-model-name nemotron-3.5-super --trust-remote-code --tensor-parallel-size 2 --max-model-len 262144 --port 8000 --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser nemotron_v3 --limit-mm-per-prompt '{"image":2,"video":0}'
     Restart=always
     
     [Install]
@@ -83,13 +100,16 @@ We provide a dummy .env file:
 
 6. Finally run your intrabot chatbot with the first command or intraSearch with the second command
     ```bash
-    chainlit run chatbot/graph.py --host 127.0.0.1 --port 8001
+    python3 -m chainlit run chatbot/graph.py --host 127.0.0.1 --port 8001 --root-path /intrabot
     ```
     ```bash
     python3 -m search.raw_semantic_search
     ```
 
 # IMPORTANT TODOS
+* FILTER OUT PATH FROM MONGODB RESULTS FOR CHATBOT
+* Set maximum amount of tool calls
+* Fix search result order for mongodb (search informatik e.g.)
 * FILTER OUT WEBPAGES AFTER CRAWLING: https://collab.dvb.bayern/users/, ...
 * add login for collab bayern as it does not allow totp
 * in create_embeddings.py: optimize memory: currently saving full doc for each chunk: a lot of redundant data

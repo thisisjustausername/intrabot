@@ -26,6 +26,7 @@ load_dotenv()
 
 embeddings = OllamaEmbeddings(model='qwen3-embedding')
 mdl = 'nvidia/Qwen3.8-27B-NVFP4'
+mdl = 'nemotron-3.5-super'
 
 llm = ChatOpenAI(
     http_client=httpx.Client(event_hooks={"request": [log_request]}),
@@ -101,7 +102,7 @@ modules: Füge bei Modulen in der Collection modules IMMER eine Projektion hinzu
 exams: Bei Klausuren müssen "_hash", "embedding_name", "embedding_type", "embedding_duration", "embedding_preparation", "embedding_description", "embedding_frequency" ausgeschlossen werden, falls du bestimmte Felder aber nicht brauchst, solltest du sie zudem ausschließen.
 
 Verwende für Suchen von Text fuzzy search oder vector Search, wobei es am besten ist, beides zu verwenden und dann auszusortieren. Schreibe als queryVector NIEMALS Zahlen. Schreibe stattdessen den Suchtext zwischen EMBED_START und EMBED_END, als String:
-{"$vectorSearch": {"index": "modules_vector_index", "path": "embedding_name", "queryVector": "EMBED_START maschinelles Lernen EMBED_END", "numCandidates": 100, "limit": 8}}
+{"$vectorSearch": {"index": "modules_vector_index", "path": "embedding_name", "queryVector": "EMBED_START maschinelles Lernen EMBED_END", "numCandidates": 100, "limit": 2}}
 Der Suchtext darf keine Anführungszeichen enthalten.
 
 Regeln für $project:
@@ -109,6 +110,12 @@ Regeln für $project:
 - Bei Inklusion: Nenne keine Felder, die mit embedding_ beginnen (sie fehlen dann automatisch im Ergebnis).
 - Bei Exklusion: Führe alle embedding_-Felder des Dokuments mit 0 auf.
 
+Regeln:
+- Verwende immer $limit.
+- Wenn du Felder mit viel Text wie Inhalt, Ziele, etc. zurückgibst, limitiere IMMER auf maximal 1 Ergebnis. Wenn du AUSSCHLIEßLICH Felder mit wenig Text zurückgibst, darfst du bis zu 3 Ergebnisse zurückgeben. Besonders bei Modulhandbüchern ist das wichtig. Auch bei Modulen.
+
+WICHTIG: MISCHE NIEMALS 0 UND 1 im selben $project.
+WICHTIG: VERWENDE NUR aggregate queries.
 Wichtig ist: Halte die Anfrage einfach und antworte SCHNELL, erfrage immer maximal 3 Ergebnisse, nur in Ausnahmen mehr. Es dürfen keine embedding_ Felder in der Ausgabe erscheinen.'''
 
     llm_with = llm.bind_tools([tool["mongodb_query"]], tool_choice="any")
