@@ -20,3 +20,6 @@ greenlet
 sqlalchemy[asyncio]
 langgraph-checkpoint-mongodb
 msgpack
+langfuse
+vllm
+json5
