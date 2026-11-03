@@ -82,6 +82,8 @@ def call_get_schema(state: MessagesState):
     """Prompt LLM to select and call schema tool"""
     llm_with = llm.bind_tools([tool["mongodb_schema"]], tool_choice="any")
     resp = llm_with.invoke(state["messages"])
+    print('CALLING SCHEMA')
+    print(resp.tool_calls[0])
     return {"messages": [resp]}
 
 
@@ -99,10 +101,15 @@ modules: Füge bei Modulen in der Collection modules IMMER eine Projektion hinzu
 exams: Bei Klausuren müssen "_hash", "embedding_name", "embedding_type", "embedding_duration", "embedding_preparation", "embedding_description", "embedding_frequency" ausgeschlossen werden, falls du bestimmte Felder aber nicht brauchst, solltest du sie zudem ausschließen.
 
 Verwende für Suchen von Text fuzzy search oder vector Search, wobei es am besten ist, beides zu verwenden und dann auszusortieren. Schreibe als queryVector NIEMALS Zahlen. Schreibe stattdessen den Suchtext zwischen EMBED_START und EMBED_END, als String:
-{"$vectorSearch": {"index": "modules_vector_index", "path": "embedding_inhalt", "queryVector": "EMBED_START maschinelles Lernen EMBED_END", "numCandidates": 100, "limit": 8}}
+{"$vectorSearch": {"index": "modules_vector_index", "path": "embedding_name", "queryVector": "EMBED_START maschinelles Lernen EMBED_END", "numCandidates": 100, "limit": 8}}
 Der Suchtext darf keine Anführungszeichen enthalten.
 
-Wichtig ist: Halte die Anfrage einfach und antworte SCHNELL, erfrage immer maximal 3 Ergebnisse, nur in Ausnahmen mehr. Schließe alle Felder, die mit embedding_ beginnen explizit aus der Projektion aus.'''
+Regeln für $project:
+- Verwende in einem $project ENTWEDER nur Inklusion (Felder mit 1) ODER nur Exklusion (Felder mit 0). Mische beides NIEMALS (einzige Ausnahme: "_id": 0).
+- Bei Inklusion: Nenne keine Felder, die mit embedding_ beginnen (sie fehlen dann automatisch im Ergebnis).
+- Bei Exklusion: Führe alle embedding_-Felder des Dokuments mit 0 auf.
+
+Wichtig ist: Halte die Anfrage einfach und antworte SCHNELL, erfrage immer maximal 3 Ergebnisse, nur in Ausnahmen mehr. Es dürfen keine embedding_ Felder in der Ausgabe erscheinen.'''
 
     llm_with = llm.bind_tools([tool["mongodb_query"]], tool_choice="any")
     print("Generating query with prompt:\n", projection_prompt)
@@ -110,7 +117,13 @@ Wichtig ist: Halte die Anfrage einfach und antworte SCHNELL, erfrage immer maxim
         [{"role": "system", "content": MONGODB_AGENT_SYSTEM_PROMPT + '\n\n' + projection_prompt}] + state["messages"]
     )
     query = resp.tool_calls[0]["args"]["query"]
+
+    # Replace any EMBED_START ... EMBED_END with the actual embedding vector
+    print(f'FINAL QUERY BEFORE EMBEDDING: {query}')
     query = to_embedding_call(query)
+    # Sanitize query by removing all embedding fields
+    # TODO: remove embedding fields from output
+
     resp.tool_calls[0]["args"]["query"] = query
     return {"messages": [resp]}
 

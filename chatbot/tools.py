@@ -9,8 +9,9 @@ from urllib.parse import urljoin
 
 import html_to_markdown as htm
 import httpx
-from langchain.messages import HumanMessage
+from langchain.messages import HumanMessage, ToolMessage
 from langchain.tools import tool
+from langfuse.langchain import CallbackHandler
 
 from chatbot.mongodb_graph import (
     create_langgraph_agent_with_enhanced_memory as create_mql_tool,
@@ -181,7 +182,10 @@ async def query_database(question: str) -> str:
     Returns:
         str: Die Ergebnisse der Abfrage als JSON-String.
     '''
-    out = await mql.ainvoke({'messages': [HumanMessage(content=question)]}, config={"callbacks": [], "tags": ["nostream"]})
+
+    # TODO: remove LANGFUSE after testing
+    langfuse_handler = CallbackHandler()
+    out = await mql.ainvoke({'messages': [HumanMessage(content=question)]}, config={"callbacks": [langfuse_handler], "tags": ["nostream"]})
     results = [m for m in out["messages"]
                    if isinstance(m, ToolMessage) and m.name == "mongodb_query"]
     if not results:

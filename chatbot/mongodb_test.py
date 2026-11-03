@@ -13,6 +13,8 @@ from langchain_mongodb.agent_toolkit.database import MongoDBDatabase
 from langchain_mongodb.agent_toolkit.toolkit import MongoDBDatabaseToolkit
 from langchain_ollama import OllamaEmbeddings
 from langchain_openai import ChatOpenAI
+from langfuse.langchain import CallbackHandler
+from langfuse import get_client
 from langgraph.checkpoint.mongodb import MongoDBSaver
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -391,7 +393,16 @@ print("• Caches summaries for better performance")
 
 def execute_graph_with_memory(thread_id: str, user_input: str):
     """Execute LangGraph agent with persistent memory"""
-    config = {"configurable": {"thread_id": thread_id}}
+    config: dict[str, str | list[CallbackHandler]] = {"configurable": {"thread_id": thread_id}}
+    langfuse = get_client()
+
+    # Verify connection
+    if langfuse.auth_check():
+        print("Langfuse client is authenticated and ready!")
+    else:
+        print("Authentication failed. Please check your credentials and host.")
+    langfuse_handler = CallbackHandler()
+    config["callbacks"] = [langfuse_handler]
 
     print(f"🧵 Thread: {thread_id}")
     print(f"❓ Query: {user_input}")
