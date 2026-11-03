@@ -93,3 +93,4 @@ We provide a dummy .env file:
 * FILTER OUT WEBPAGES AFTER CRAWLING: https://collab.dvb.bayern/users/, ...
 * add login for collab bayern as it does not allow totp
 * in create_embeddings.py: optimize memory: currently saving full doc for each chunk: a lot of redundant data
+* create src/ package folder structure
