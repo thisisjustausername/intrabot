@@ -97,9 +97,6 @@ def generate_query(state: MessagesState):
     """Generate MongoDB aggregation pipeline"""
 
     projection_prompt = '''Schließe Felder, die du nicht brauchen wirst, direkt aus. Limitiere die Anzahl der zurückgegebenen Suchergebnisse IMMER streng. NUR wenn du nach einem einzigen Element mittels der _id suchst, darfst du alle Felder zurückgeben.
-mhbs: Füge bei Modulhandbüchern in der Collection mhbs IMMER eine Projektion hinzu, die NUR folgende Felder oder eine Auswahl folgender Felder enthält: "_hash", "path", "name", "start_semester", "faculties", "mhb_group", "description", "module_groups". Bei "modules_groups" darfst du, falls nötig ein lookup auf modules machen, dann darfst du allerdings von modules NUR die Felder "_id", "module_code", "name" auswählen mit einer Projektion. Schließe IMMER "embedding_name", "embedding_faculties", "embedding_description" aus!
-modules: Füge bei Modulen in der Collection modules IMMER eine Projektion hinzu, die IMMER mindestens folgende Felder oder noch weitere Felder ausschließt: "_hash", "inhalt", "ziele", "workloads", "klausurbeschreibung", "voraussetzungen", "bestehensvoraussetzungen", "dozent", "international", "prüfungen", "embedding_name", "embedding_prerequisites", "embedding_success_requirements", "embedding_content", "embedding_lecturer", "embedding_exam_outline", "embedding_goals", "embedding_faculty_chair", "embedding_workloads".
-exams: Bei Klausuren müssen "_hash", "embedding_name", "embedding_type", "embedding_duration", "embedding_preparation", "embedding_description", "embedding_frequency" ausgeschlossen werden, falls du bestimmte Felder aber nicht brauchst, solltest du sie zudem ausschließen.
 
 Verwende für Suchen von Text fuzzy search oder vector Search, wobei es am besten ist, beides zu verwenden und dann auszusortieren. Schreibe als queryVector NIEMALS Zahlen. Schreibe stattdessen den Suchtext zwischen EMBED_START und EMBED_END, als String:
 {"$vectorSearch": {"index": "modules_vector_index", "path": "embedding_name", "queryVector": "EMBED_START maschinelles Lernen EMBED_END", "numCandidates": 100, "limit": 2}}
@@ -107,8 +104,6 @@ Der Suchtext darf keine Anführungszeichen enthalten.
 
 Regeln für $project:
 - Verwende in einem $project ENTWEDER nur Inklusion (Felder mit 1) ODER nur Exklusion (Felder mit 0). Mische beides NIEMALS (einzige Ausnahme: "_id": 0).
-- Bei Inklusion: Nenne keine Felder, die mit embedding_ beginnen (sie fehlen dann automatisch im Ergebnis).
-- Bei Exklusion: Führe alle embedding_-Felder des Dokuments mit 0 auf.
 
 Regeln:
 - Verwende immer $limit.
@@ -116,7 +111,7 @@ Regeln:
 
 WICHTIG: MISCHE NIEMALS 0 UND 1 im selben $project.
 WICHTIG: VERWENDE NUR aggregate queries.
-Wichtig ist: Halte die Anfrage einfach und antworte SCHNELL, erfrage immer maximal 3 Ergebnisse, nur in Ausnahmen mehr. Es dürfen keine embedding_ Felder in der Ausgabe erscheinen.'''
+Wichtig ist: Halte die Anfrage einfach und antworte SCHNELL, erfrage immer maximal 3 Ergebnisse, nur in Ausnahmen mehr.'''
 
     llm_with = llm.bind_tools([tool["mongodb_query"]], tool_choice="any")
     print("Generating query with prompt:\n", projection_prompt)

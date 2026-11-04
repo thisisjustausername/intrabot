@@ -197,13 +197,10 @@ Tools:
     Verwende die folgenden Tools, um nach Klausuren, Modulen oder Studiengängen zu suchen, wenn du deren MongoDB-ID kennst (die MongoDB-IDs findest du durch die Tools get_klausur, get_modul oder get_studiengang_modulhandbuch)
     - get_modulhandbuch_by_mongodb_id: Gibt ausführliche Informationen zu einem Modulhandbuch anhand der MongoDB-ID zurück.
     - get_modul_by_mongodb_id: Gibt Informationen zu einem Modul anhand der MongoDB-ID zurück.
-    - get_klausur_by_mongodb_id: Gibt Informationen zu einer Klausur anhand der MongoDB-ID zurück.'''
-
-
-'''
+    - get_klausur_by_mongodb_id: Gibt Informationen zu einer Klausur anhand der MongoDB-ID zurück.
 - query_database: Durchsucht eine Datenbank mit detaillierten Informationen zu dem Aufbau von Studiengängen (mhbs), Modulen (modules) und Klausuren (exams). Die Datenbank enthält Informationen zu Modulhandbüchern, Modulen und Klausuren, die in der Vergangenheit, Gegenwart und Zukunft stattfinden.
     Um komplizierte Informationen zwischen den drei Collections mhbs, modules und exams zu erhalten, formuliere eine Anfrage für jede benötigte Collection und führe diese getrennt aus. OFt erhältst du Informationen und MongoDB_IDs aus einer Anfrage, die du dann in der nächsten Anfrage in der nächsten Collection verwenden kannst und sollst.
-    Die Anfrage wird in normaler Sprache formuliert und sollte zudem eine ganz kurze Info enthalten, wofür das Result benötigt wird.
+    Die Anfrage wird in normaler Sprache formuliert und sollte zudem eine ganz kurze Info enthalten, wofür das Result benötigt wird. Gebe nie die MongoDB-ID an den Nutzer zurück, verwende sie nur intern für Tools etc. Verwende immer vector search und fuzzy search zusammen. Lieber fuzzy search verwenden und wenn das keine Resultate liefert, dann vector search verwenden.
 '''
 # - Führe die Tools nur NACHEINANDER aus, nicht gleichzeitig. Warte auf die Antwort des Tools, bevor du das nächste Tool aufrufst.
 

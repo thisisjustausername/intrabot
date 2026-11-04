@@ -5,13 +5,13 @@ import os
 
 import json5
 import langchain_mongodb.agent_toolkit.tool as mongodb_tool
+from bson.json_util import dumps
 from langchain_core.caches import BaseCache as BaseCache
 from langchain_core.callbacks import (
     CallbackManagerForToolRun,
 )
 from langchain_core.callbacks import Callbacks as Callbacks
 from langchain_core.tools import BaseTool
-from langchain_mongodb.agent_toolkit.database import MongoDBDatabase
 from langchain_mongodb.agent_toolkit.tool import (
     BaseMongoDBDatabaseTool,
     ListMongoDBDatabaseTool,
@@ -19,13 +19,22 @@ from langchain_mongodb.agent_toolkit.tool import (
     QueryMongoDBDatabaseTool,
     _InfoMongoDBDatabaseToolInput,
 )
-from langchain_mongodb.agent_toolkit.toolkit import MongoDBDatabaseToolkit
+from langchain_mongodb.agent_toolkit.toolkit import (
+    MongoDBDatabase,
+    MongoDBDatabaseToolkit,
+)
 from pydantic import BaseModel
+from pymongo.cursor import Cursor
+from pymongo_search_utils.parsing import parse_command
 
 with open(os.path.expanduser('~/mhbai/src/mhbai/mongo_db/collection_schemata.jsonc'), 'r') as f:
     collection_schemata = json5.load(f)
 with open(os.path.expanduser('~/mhbai/src/mhbai/mongo_db/collection_indices.json'), 'r') as f:
     collection_indices = json5.load(f)
+
+embedding_keys = {
+    e['path'] for i in collection_indices.values() for e in i.get('vectorSearch', {}).get('definition', {}).get('fields', []) if e['type'] == 'vector'
+}
 
 def get_collection_info(self, collection_names: list[str] | None = None) -> str:
     """Get information about specified collections.
@@ -138,6 +147,53 @@ def get_tools(self) -> list[BaseTool]:
         query_mongodb_checker_tool,
     ]
 
+
+def sanitize_query(query: list[dict]) -> list[dict]:
+
+    query.append({'$project': {i: 0 for i in embedding_keys} | {'path': 0}})
+    if not any('$limit' in stage for stage in query):
+        query.append({'$limit': 2})
+
+    return query
+
+
+def run(self, command: str) -> str | Cursor:
+    """Execute a MongoDB aggregation command and return a string representing the results.
+
+    If the statement returns documents, a string of the results is returned.
+    If the statement returns no documents, an empty string is returned.
+
+    The command MUST be of the form: `db.collectionName.aggregate(...)`.
+    """
+    if not command.startswith("db."):
+        raise ValueError(f"Cannot run command {command}")
+
+    try:
+        col_name = command.split(".")[1]
+    except IndexError as e:
+        raise ValueError(
+            "Invalid command format. Could not extract collection name."
+        ) from e
+
+    if col_name not in self.get_usable_collection_names():
+        raise ValueError(f"Collection {col_name} does not exist!")
+
+    if ".aggregate(" not in command:
+        raise ValueError("Only aggregate(...) queries are currently supported.")
+
+    # Parse pipeline using helper
+    agg_pipeline = parse_command(command)
+
+    agg_pipeline = sanitize_query(agg_pipeline)
+
+    try:
+        coll = self._db[col_name]
+        result = coll.aggregate(agg_pipeline)
+        return dumps(list(result), indent=2)
+    except Exception as e:
+        raise ValueError(f"Error executing aggregation: {e}") from e
+
 MongoDBDatabaseToolkit.get_tools = get_tools
 mongodb_tool.InfoMongoDBDatabaseTool = InfoMongoDBDatabaseTool # type: ignore
 MongoDBDatabase.get_collection_info = get_collection_info
+MongoDBDatabase.run = run

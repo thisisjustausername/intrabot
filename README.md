@@ -4,7 +4,6 @@ Build semantic search engine with chatbot for intranet of University of Augsburg
 
 # IMPORTANT NOTICE
 Highest order TODOs
-* FILTER OUT PATH FROM MONGODB RESULTS FOR CHATBOT
 * Set maximum amount of tool calls
 * Fix search result order for mongodb (search informatik e.g.)
 * Nemotron uncertainty confidence besser angeben
@@ -107,7 +106,6 @@ We provide a dummy .env file:
     ```
 
 # IMPORTANT TODOS
-* FILTER OUT PATH FROM MONGODB RESULTS FOR CHATBOT
 * Set maximum amount of tool calls
 * Fix search result order for mongodb (search informatik e.g.)
 * FILTER OUT WEBPAGES AFTER CRAWLING: https://collab.dvb.bayern/users/, ...
