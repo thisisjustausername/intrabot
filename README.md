@@ -106,6 +106,7 @@ We provide a dummy .env file:
     ```
 
 # IMPORTANT TODOS
+* Split XML MHBS into modules exams etc as usual but keep the xml, then convert xml to md and for each document (same splitting as in current version) save md card and maybe infocard plus optionally use chunking, then create own vector db or together with intranet db but add filter options like classes of source.
 * Set maximum amount of tool calls
 * Fix search result order for mongodb (search informatik e.g.)
 * FILTER OUT WEBPAGES AFTER CRAWLING: https://collab.dvb.bayern/users/, ...
