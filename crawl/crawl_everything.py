@@ -11,7 +11,7 @@ from login.login import load_session
 # Example usage
 session = Session()
 load_session(session)  # Load the session with login cookies or headers
-start_urls = ['https://www.uni-augsburg.de', 'https://www.uni-augsburg.de/de/portal/intranet/'] # , 'https://collab.dvb.bayern/', 'https://collab.dvb.bayern/spaces/UniARZSER/pages/395639043/Knowledge+Base+des+Rechenzentrums', 'https://collab.dvb.bayern/spaces/UniAZV2/pages/751046293/Knowledge+Base+der+Personalabteilung+der+Universit%C3%A4t+Augsburg', 'https://collab.dvb.bayern/spaces/UniARZHPCKB/pages/392035423/Knowledge+Base+f%C3%BCr+wissenschaftliches+Rechnen+HPC+Startseite'
+start_urls = ['https://www.uni-augsburg.de', 'https://www.uni-augsburg.de/de/portal/intranet/', 'https://mhb.uni-augsburg.de/'] # , 'https://collab.dvb.bayern/', 'https://collab.dvb.bayern/spaces/UniARZSER/pages/395639043/Knowledge+Base+des+Rechenzentrums', 'https://collab.dvb.bayern/spaces/UniAZV2/pages/751046293/Knowledge+Base+der+Personalabteilung+der+Universit%C3%A4t+Augsburg', 'https://collab.dvb.bayern/spaces/UniARZHPCKB/pages/392035423/Knowledge+Base+f%C3%BCr+wissenschaftliches+Rechnen+HPC+Startseite'
 
 stats = None
 try:
@@ -27,7 +27,7 @@ crawler = ThreadedCrawler(
     session,
     start_urls,
     max_threads=(os.cpu_count() or 32) * 10,
-    whitelisted_domains={r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de(/.*)?$', r'^https://brand-portal\.uni-augsburg\.de(/.*)?$', r'^https://my\.corebook\.io/uni-augsburg(/.*)?$'}, # , r'^https://collab\.dv\b.bayern(/.*)?$'
+    whitelisted_domains={r'^https://([a-zA-Z0-9-]+\.)?uni-augsburg\.de(/.*)?$', r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de(/.*)?$', r'^https://brand-portal\.uni-augsburg\.de(/.*)?$', r'^https://my\.corebook\.io/uni-augsburg(/.*)?$'}, # , r'^https://collab\.dv\b.bayern(/.*)?$'
     blacklisted_domains={r'^https://collab.dvb.bayern/users(/.*)?$', r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de/en(/.*)?$', r'^https://collab\.dvb\.bayern/login.action\?.*?$', r'^https://www\.uni-augsburg\.de/admin/login([/?].*)?$', r'^https://collab.dvb.bayern(/.*)?$', r'^https://www.uni-augsburg.de/admin/logout([/?].*)?', r'^https://www.uni-augsburg.de/auth([/?].*)?'},
     timeout=60,
     visited=previously_visited_urls.union(previously_error_urls) if previously_visited_urls is not None else None # type: ignore
