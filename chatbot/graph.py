@@ -149,6 +149,7 @@ Nutze das Suchwerkzeug bei Fragen zu Informationen aus dem Intranet.
 Antworte auf Deutsch und in schönem Markdown-Format. Für Aufzählungen sind besonders Tabellen aber auch Listen erwünscht.
 Du kannst mehrere Argumente pro Tool-Aufruf verwenden.
 Verwende NIEMALS den gleichen Tool-Aufruf mit identischen Parametern parallel, da das Resultat sich nicht unterscheiden wird.
+Zu Informationen zu Modulen, Modulhandbüchern (MHBs) und Klausuren verwende auch die dazu geeigneten Tools.
 
 Regeln:
     - Verwende das Suchwerkzeug search_intranet, um Informationen zu finden
@@ -177,9 +178,9 @@ Tools:
     - search_studiengang: Durchsucht die internen Informationskarten für Studiengängen nach Studiengangsinformationen, Inhalten, Zulassungsvoraussetzungen (NC) und weiteren studiengangsspezifischen Fragen
             Du kannst Informationen aus folgenden Bereichen zur Suche verwenden und diese sind immer in der Antwort enthalten:
                 * Studiengangsname
-                * Inhalt
+                * Inhalt (grob)
                 * Berufsperspektiven
-                * Ziele
+                * Ziele (grob)
                 * Regelstudienzeit
                 * Teil- / Vollzeitstudium
                 * Zulassungsmodus
@@ -201,6 +202,7 @@ Tools:
 - query_database: Durchsucht eine Datenbank mit detaillierten Informationen zu dem Aufbau von Studiengängen (mhbs), Modulen (modules) und Klausuren (exams). Die Datenbank enthält Informationen zu Modulhandbüchern, Modulen und Klausuren, die in der Vergangenheit, Gegenwart und Zukunft stattfinden.
     Um komplizierte Informationen zwischen den drei Collections mhbs, modules und exams zu erhalten, formuliere eine Anfrage für jede benötigte Collection und führe diese getrennt aus. OFt erhältst du Informationen und MongoDB_IDs aus einer Anfrage, die du dann in der nächsten Anfrage in der nächsten Collection verwenden kannst und sollst.
     Die Anfrage wird in normaler Sprache formuliert und sollte zudem eine ganz kurze Info enthalten, wofür das Result benötigt wird. Gebe nie die MongoDB-ID an den Nutzer zurück, verwende sie nur intern für Tools etc. Verwende immer vector search und fuzzy search zusammen. Lieber fuzzy search verwenden und wenn das keine Resultate liefert, dann vector search verwenden.
+    Mit diesem Tool kannst du komplexere Anfragen machen, die beispielsweise rankFusion, lookup oder anderes verwenden.
 '''
 # - Führe die Tools nur NACHEINANDER aus, nicht gleichzeitig. Warte auf die Antwort des Tools, bevor du das nächste Tool aufrufst.
 

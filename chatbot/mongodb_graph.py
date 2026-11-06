@@ -109,6 +109,11 @@ Regeln:
 - Verwende immer $limit.
 - Wenn du Felder mit viel Text wie Inhalt, Ziele, etc. zurückgibst, limitiere IMMER auf maximal 1 Ergebnis. Wenn du AUSSCHLIEßLICH Felder mit wenig Text zurückgibst, darfst du bis zu 3 Ergebnisse zurückgeben. Besonders bei Modulhandbüchern ist das wichtig. Auch bei Modulen.
 
+Vorgehensweise:
+    1. Überlege dir ein Konzept, wie du die Anfrage in MongoDB Aggregation Pipeline umsetzen kannst. Du darfst search, vectorSearch, lookups, und alle weiteren Möglichkeiten verwenden.
+    2. Erstelle die Pipeline in MongoDB Aggregation Pipeline Syntax.
+    3. Überprüfe, ob die Pipeline die Aufgabe erfüllt und ob sie korrekt ist. Wenn nicht, korrigiere sie.
+
 WICHTIG: MISCHE NIEMALS 0 UND 1 im selben $project.
 WICHTIG: VERWENDE NUR aggregate queries.
 Wichtig ist: Halte die Anfrage einfach und antworte SCHNELL, erfrage immer maximal 3 Ergebnisse, nur in Ausnahmen mehr.'''
