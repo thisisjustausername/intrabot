@@ -119,7 +119,7 @@ class ThreadedCrawler:
                     try:
                         while conversions_running >= max_conversions:
                             time.sleep(1)
-                            print(f"Waiting for conversions to finish. Currently running: {conversions_running}")
+                            # print(f"Waiting for conversions to finish. Currently running: {conversions_running}")
                         conversions_running += 1
                         markdown = self.pdf_to_markdown(data)
                     finally:
