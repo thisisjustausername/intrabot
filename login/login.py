@@ -11,7 +11,6 @@ import os
 import pickle
 import struct
 import time
-import xml.etree.ElementTree as ET
 import zlib
 from urllib import parse
 
@@ -94,7 +93,7 @@ def login(session: requests.Session, user_name: str, password: str, secret: str,
 
     # extract the login URL from the page
     soup = BeautifulSoup(result.text, 'lxml')
-    next_step_url = soup.find('form', id='kc-form-login').get('action')
+    next_step_url = soup.find('form', id='kc-form-login').get('action') # type: ignore
 
     # pass in user data to get to the next step
     result = session.post(next_step_url, data={'username': user_name, 'password': password}) # type: ignore
@@ -111,6 +110,7 @@ def login(session: requests.Session, user_name: str, password: str, secret: str,
     return result, session
 
 
+"""
 @NotImplementedError
 def login_collab_dvb_bayern(session: requests.Session, user_name: str, password: str, secret: str, cookie_path: str) -> tuple[requests.Response, requests.Session]:
     '''
@@ -127,6 +127,8 @@ def login_collab_dvb_bayern(session: requests.Session, user_name: str, password:
     start_url = 'https://collab.dvb.bayern/plugins/servlet/samlsso?redirectTo=%2F'
     result = session.get(start_url)
     soup = BeautifulSoup(result.text, 'lxml')
+"""
+
 
 def save_session(file: str, session: requests.Session) -> None:
     """
@@ -157,10 +159,13 @@ def load_session(session: requests.Session) -> requests.Session:
 
     # load login parameters from .env
     load_dotenv()
-    user_name: str = os.getenv('USERNAME')
-    password: str = os.getenv('PASSWORD')
-    secret: str = os.getenv('TOTP')
-    cookie_path: str = os.getenv('COOKIE_PATH')
+    user_name: str = os.getenv('USERNAME') # type: ignore
+    password: str = os.getenv('PASSWORD') # type: ignore
+    totp_secret: str = os.getenv('TOTP_SECRET') # type: ignore
+    cookie_path: str = os.getenv('COOKIE_PATH') # type: ignore
+
+    if any(i is None for i in [user_name, password, totp_secret, cookie_path]):
+        raise UserWarning("One or more required environment variables are not set.")
 
     # reading the saved cookies
     try:
@@ -183,8 +188,12 @@ if __name__ == '__main__':
     password = os.getenv('PASSWORD')
     secret = os.getenv('TOTP_SECRET')
     cookie_path = os.getenv('COOKIE_PATH')
+
+    if any(i is None for i in [user_name, password, secret, cookie_path]):
+        raise UserWarning("One or more required environment variables are not set.")
+
     session = requests.Session()
-    login(session=session, user_name=user_name, password=password, secret=secret, cookie_path=cookie_path)
+    login(session=session, user_name=user_name, password=password, secret=secret, cookie_path=cookie_path) # type: ignore
     res = session.get("https://www.uni-augsburg.de/de/portal/intranet/")
     print(res.text)
     print(res.status_code)
