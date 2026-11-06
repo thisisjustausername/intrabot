@@ -25,3 +25,4 @@ vllm>=0.33.0
 json5
 docling
 onnxruntime-gpu
+torchaudio
