@@ -5,6 +5,7 @@ import json
 import os
 import re
 import threading
+import time
 from io import BytesIO
 from queue import Queue
 from urllib.parse import urljoin, urlparse
@@ -23,14 +24,15 @@ opts = PdfPipelineOptions()
 opts.do_ocr = False
 opts.do_table_structure = True
 opts.table_structure_options.mode = TableFormerMode.FAST # type: ignore
-opts.accelerator_options = AcceleratorOptions(num_threads=128, device=AcceleratorDevice.CUDA)
+opts.accelerator_options = AcceleratorOptions(num_threads=32, device=AcceleratorDevice.CUDA)
 
 converter = DocumentConverter(
     format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)}
 )
 
 page_break = "---Page Break---"
-
+conversions_running: int = 0
+max_conversions: int = 100
 
 def crawl(session: Session, url: str) -> str:
     '''
@@ -89,6 +91,7 @@ class ThreadedCrawler:
         return md_doc
 
     def worker(self):
+        global conversions_running
         while True:
             url = None
             skip_md = False
@@ -113,7 +116,14 @@ class ThreadedCrawler:
 
                     if not data.startswith(b"%PDF-"):
                         raise ValueError(f"Claimed PDF but bad magic bytes: {url}")
-                    markdown = self.pdf_to_markdown(data)
+                    try:
+                        while conversions_running >= max_conversions:
+                            time.sleep(1)
+                            print(f"Waiting for conversions to finish. Currently running: {conversions_running}")
+                        conversions_running += 1
+                        markdown = self.pdf_to_markdown(data)
+                    finally:
+                        conversions_running -= 1
                     skip_md = True
 
                 elif 'text/html' not in content_type:
@@ -134,7 +144,7 @@ class ThreadedCrawler:
                 base_tag = soup.find('base', href=True)
                 if base_tag:
                     # If base_tag is itself relative, resolve it against page_url
-                    base_url = urljoin(page_url, base_tag['href'])
+                    base_url = urljoin(page_url, base_tag['href']) # type: ignore
                 else:
                     base_url = page_url
 
@@ -185,7 +195,15 @@ if __name__ == '__main__':
     session = Session()
     load_session(session)  # Load the session with login cookies or headers
     start_url = 'https://www.uni-augsburg.de/de/portal/intranet/'
-    crawler = ThreadedCrawler(session, start_url, max_threads=os.cpu_count()) # avoid rate-limiting
+    crawler = ThreadedCrawler(
+        session,
+        [start_url],
+        max_threads=(os.cpu_count() or 32) * 10,
+        whitelisted_domains={r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de(/.*)?$', r'^https://brand-portal\.uni-augsburg\.de(/.*)?$', r'^https://my\.corebook\.io/uni-augsburg(/.*)?$'}, # , r'^https://collab\.dv\b.bayern(/.*)?$'
+        blacklisted_domains={r'^https://collab.dvb.bayern/users(/.*)?$', r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de/en(/.*)?$', r'^https://collab\.dvb\.bayern/login.action\?.*?$', r'^https://www\.uni-augsburg\.de/admin/login([/?].*)?$', r'^https://collab.dvb.bayern(/.*)?$', r'^https://www.uni-augsburg.de/admin/logout([/?].*)?', r'^https://www.uni-augsburg.de/auth([/?].*)?'},
+        timeout=60,
+        visited=None
+    )
     visited_urls = crawler.run()
     print(f'Visited {len(visited_urls)} URLs:')
     for url in visited_urls:
