@@ -5,14 +5,31 @@ import json
 import os
 import re
 import threading
+from io import BytesIO
 from queue import Queue
 from urllib.parse import urljoin, urlparse
 
 import html_to_markdown as htm
 from bs4 import BeautifulSoup
+from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
+from docling.datamodel.base_models import DocumentStream, InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode
+from docling.document_converter import DocumentConverter, PdfFormatOption
 from requests import Session
 
 from login.login import load_session
+
+opts = PdfPipelineOptions()
+opts.do_ocr = False
+opts.do_table_structure = True
+opts.table_structure_options.mode = TableFormerMode.FAST # type: ignore
+opts.accelerator_options = AcceleratorOptions(num_threads=128, device=AcceleratorDevice.CUDA)
+
+converter = DocumentConverter(
+    format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)}
+)
+
+page_break = "---Page Break---"
 
 
 def crawl(session: Session, url: str) -> str:
@@ -56,7 +73,7 @@ class ThreadedCrawler:
             clean_url += f'?{parsed.query}'
         return clean_url
 
-    def pdf_to_markdown(data: bytes) -> str:
+    def pdf_to_markdown(self, data: bytes) -> str:
         '''
         Convert PDF bytes to Markdown format.
 
@@ -66,11 +83,15 @@ class ThreadedCrawler:
         Returns:
             str: The converted Markdown content.
         '''
-        result = parse(str)
+        stream = DocumentStream(name="document.pdf", stream=BytesIO(data))
+        result = converter.convert(stream)
+        md_doc = result.document.export_to_markdown(page_break_placeholder=page_break)
+        return md_doc
 
     def worker(self):
         while True:
             url = None
+            skip_md = False
             try:
                 url = self.queue.get()
                 if url is None:
@@ -92,15 +113,22 @@ class ThreadedCrawler:
 
                     if not data.startswith(b"%PDF-"):
                         raise ValueError(f"Claimed PDF but bad magic bytes: {url}")
+                    markdown = self.pdf_to_markdown(data)
+                    skip_md = True
 
                 elif 'text/html' not in content_type:
                     continue
-                markdown = htm.convert(response.text, options=self.options)
+                if skip_md is False:
+                    markdown = htm.convert(response.text, options=self.options)
                 page_url = response.url or url  # Use the final URL after redirects if available
                 if page_url not in self.visited:
                     with self.lock:
                         self.visited.add(page_url)
-                self.pages.append((page_url, markdown.content))
+                self.pages.append((page_url, markdown.content if skip_md is False else markdown)) # type: ignore
+                print(url, page_url)
+
+                if skip_md is True:
+                    continue
 
                 soup = BeautifulSoup(response.text, 'html.parser')
                 base_tag = soup.find('base', href=True)
@@ -121,7 +149,6 @@ class ThreadedCrawler:
                         if link not in self.visited:
                             self.visited.add(link)
                             self.queue.put(link)
-                print(page_url)
             except Exception as e:
                 print(f'\033[31mError crawling {url}: {e}\033[0m')
                 self.error_urls.add(url)
