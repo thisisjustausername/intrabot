@@ -2,9 +2,11 @@
 
 CREATE SCHEMA IF NOT EXISTS auth;
 CREATE SCHEMA IF NOT EXISTS bot;
+CREATE SCHEMA IF NOT EXISTS data;
 
 -- enum for user_role in table users
 CREATE TYPE USER_ROLE AS ENUM ('admin', 'user', 'mis-user');
+CREATE TYPE DATA_TYPE AS ENUM ('website', 'pdf', 'image');
 
 -- table to save users
 CREATE TABLE IF NOT EXISTS auth.users (
@@ -93,4 +95,12 @@ CREATE TABLE IF NOT EXISTS bot.feedbacks (
     "value" INT NOT NULL,
     "comment" TEXT,
     FOREIGN KEY ("threadId") REFERENCES bot.threads("id") ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS data.website (
+    "id" SERIAL PRIMARY KEY,
+    "url" TEXT NOT NULL UNIQUE,
+    "type" DATA_TYPE NOT NULL,
+    "markdown" TEXT NOT NULL,
+    "created_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );

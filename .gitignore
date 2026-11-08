@@ -9,3 +9,7 @@ login/cookies.pkl
 screenlog.*
 uni_all_retriever
 model/
+testing/
+test_pdfs/
+maintenance_message/
+postql-0.1.0.tar.gz

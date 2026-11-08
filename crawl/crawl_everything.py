@@ -42,19 +42,19 @@ print(f'Visited {len(visited_urls)} URLs:')
 for url in visited_urls:
     print(url)
 '''
-pages = crawler.pages
-print('saving pages to crawled_pages_all.json')
-try:
-    with open('crawled_pages_all.json', 'r') as f:
-        existing_pages = json.load(f)
-        pages.extend(existing_pages)
-except FileNotFoundError:
-    pass
-with open('crawled_pages_all.json', 'w') as f:
-    json.dump(pages, f, indent=4)
+# pages = crawler.pages
+# print('saving pages to crawled_pages_all.json')
+# try:
+#     with open('crawled_pages_all.json', 'r') as f:
+#         existing_pages = json.load(f)
+#         pages.extend(existing_pages)
+# except FileNotFoundError:
+#     pass
+# with open('crawled_pages_all.json', 'w') as f:
+#     json.dump(pages, f, indent=4)
 with open('stats_crawled_all.json', 'w') as f:
     json.dump({
         'visited_urls': list(visited_urls),
         'error_urls': list(crawler.error_urls),
-        'pages_count': len(pages)
+        # 'pages_count': len(pages)
     }, f, indent=4)

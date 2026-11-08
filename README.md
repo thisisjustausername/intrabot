@@ -22,6 +22,11 @@ We advise to use a powerful NVIDIA-GPU for this workflow.
     source venv/bin/activate
     pip3 install -r requirements.txt
     pip3 install -e ../mhbai
+    # Download .tar file
+    curl https://raw.githubusercontent.com/thisisjustausername/postql/refs/heads/main/dist/postql-0.1.0.tar.gz --output postql-0.1.0.tar.gz
+    
+    # Install .tar file
+    pip install postql-0.1.0.tar.gz
     
     touch login/cookies.pkl
     ```
@@ -88,7 +93,7 @@ We provide a dummy .env file:
     ```bash
     sudo -u postgres psql
     CREATE USER <USERNAME>;
-    ALTER ROLE  <USERNAME> SET search_path = bot, auth;
+    ALTER ROLE  <USERNAME> SET search_path = bot, auth, data;
     CREATE DATABASE chlit OWNER <USERNAME>;
     GRANT ALL PRIVILEGES ON DATABASE chlit TO <USERNAME>;
     exit

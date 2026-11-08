@@ -1,24 +1,44 @@
 '''
 This script implements a threaded web crawler that starts from a given URL and crawls all reachable pages within the same domain. It uses the `requests` library to make HTTP requests, `BeautifulSoup` to parse HTML, and `html_to_markdown` to convert HTML content to Markdown format. The crawler is designed to handle multiple threads for concurrent crawling, improving efficiency.
+
+Start the backend using:
+```bash
+NUM_GPUS=2
+PER_GPU=15
+for ((i=0; i<NUM_GPUS*PER_GPU; i++)); do
+    p=$((5001 + i))
+    gpu=$(( (p - 5001) % NUM_GPUS ))   # round-robin ports across GPUs
+    CUDA_VISIBLE_DEVICES=$gpu \
+    DOCLING_DEVICE=cuda \
+    DOCLING_NUM_THREADS=8 DOCLING_PERF_PAGE_BATCH_SIZE=4 \
+    DOCLING_SERVE_ENG_LOC_NUM_WORKERS=1 \
+    docling-serve run --port $p &
+done
+```
 '''
 import json
 import os
 import re
 import threading
-import time
 from io import BytesIO
 from queue import Queue
 from urllib.parse import urljoin, urlparse
 
 import html_to_markdown as htm
+import requests
 from bs4 import BeautifulSoup
 from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
 from docling.datamodel.base_models import DocumentStream, InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode
 from docling.document_converter import DocumentConverter, PdfFormatOption
+from dotenv import load_dotenv
+from postql import DB
+from postql.types import Credentials
 from requests import Session
 
 from login.login import load_session
+
+load_dotenv()
 
 opts = PdfPipelineOptions()
 opts.do_ocr = False
@@ -30,9 +50,21 @@ converter = DocumentConverter(
     format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)}
 )
 
+NUM_GPUS = 2
+PER_GPU = 15
+DOCLING_SERVERS = [f"http://localhost:{p}" for p in (5001 + i for i in range(NUM_GPUS * PER_GPU))]
+
 page_break = "---Page Break---"
-conversions_running: int = 0
-max_conversions: int = 100
+
+creds = Credentials(
+    user=os.environ.get("USERDB"), # type: ignore
+    password=os.environ.get("POSTGRES_PASSWORD"), # type: ignore
+    host=os.environ.get("POSTGRES_HOST"), # type: ignore
+    port=int(os.environ.get("PORT")), # type: ignore
+    database_name=os.environ.get("DBNAME") # type: ignore
+)
+
+db = DB(creds)
 
 def crawl(session: Session, url: str) -> str:
     '''
@@ -50,9 +82,19 @@ def crawl(session: Session, url: str) -> str:
     return response.text
 
 class ThreadedCrawler:
-    def __init__(self, session: Session, start_urls: list[str], max_threads: int = 5, whitelisted_domains: set[str] | None = None, blacklisted_domains: set[str] | None = None, timeout: int = 30, visited: set[str] | None = None):
-        self.start_urls = start_urls
+    def __init__(self,
+        session: Session,
+        start_urls: list[str],
+        max_threads: int = 5,
+        whitelisted_domains: set[str] | None = None,
+        blacklisted_domains: set[str] | None = None,
+        timeout: int = 30,
+        visited: set[str] | None = None):
 
+        self.start_urls = start_urls
+        self.pdf_queue = Queue(maxsize=NUM_GPUS * PER_GPU * 10)
+        self.parser_servers = DOCLING_SERVERS
+        self.num_parsers = len(DOCLING_SERVERS)
         self.queue = Queue()
         self.visited = set() if visited is None else visited
         self.lock = threading.Lock()
@@ -62,7 +104,7 @@ class ThreadedCrawler:
         self.whitelisted_domains = whitelisted_domains if whitelisted_domains is not None else {r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de(/.*)?$', r'^https://brand-portal\.uni-augsburg\.de(/.*)?$', r'^https://my\.corebook\.io/uni-augsburg(/.*)?$'}
         self.blacklisted_domains = blacklisted_domains if blacklisted_domains is not None else {r'^https://collab.dvb.bayern/users(/.*)?$', r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de/en(/.*)?$'}
         self.timeout = timeout
-        self.pages: list[tuple[str, str]] = []
+        # self.pages: list[tuple[str, str]] = []
         self.error_urls = set()
 
     def normalize_url(self, base_url, href):
@@ -90,17 +132,71 @@ class ThreadedCrawler:
         md_doc = result.document.export_to_markdown(page_break_placeholder=page_break)
         return md_doc
 
+    def convert_pdf(self, data: bytes, server_url) -> str:
+        stream = BytesIO(data)
+        response = requests.post(
+            f"{server_url}/v1/convert/file",
+            files={
+                "files": (
+                    'document.pdf',
+                    stream,
+                    "application/pdf",
+                )
+            },
+            data={
+                "from_formats": "pdf",
+                "to_formats": "md",
+                "do_ocr": "false",
+                "do_table_structure": "true",
+                "table_mode": "fast",
+            },
+            timeout=600,
+        )
+
+        response.raise_for_status()
+        result = response.json()
+
+        # Extract Markdown
+        md_doc = result["document"]["md_content"]
+
+        # Add your preferred page-break placeholder
+        md_doc = md_doc.replace("\n---\n", f"\n{page_break}\n")
+        return md_doc
+
+    def parser(self, jobs, server):
+        while True:
+            item = jobs.get()
+            if item is None:
+                return
+
+            try:
+                url, file = item
+                md = self.convert_pdf(file, server)
+                res = db.insert(
+                    table="data.website",
+                    values={
+                        "url": url,
+                        "type": "pdf",
+                        "markdown": md
+                    }
+                )
+
+                if res.is_error:
+                    print(f"\033[31mFailed to insert {url} into database: {res.error}\033[0m")
+            except Exception as e:
+                print(f"Error processing {url}: {e}")
+
+
     def worker(self):
-        global conversions_running
         while True:
             url = None
-            skip_md = False
             try:
                 url = self.queue.get()
                 if url is None:
                     return
                 response = self.session.get(url, timeout=self.timeout, allow_redirects=True)
                 content_type = response.headers.get('Content-Type', '')
+                page_url = response.url or url  # Use the final URL after redirects if available
                 if response.status_code != 200:
                     continue
                 if content_type == 'application/pdf':
@@ -116,29 +212,34 @@ class ThreadedCrawler:
 
                     if not data.startswith(b"%PDF-"):
                         raise ValueError(f"Claimed PDF but bad magic bytes: {url}")
-                    try:
-                        while conversions_running >= max_conversions:
-                            time.sleep(1)
-                            # print(f"Waiting for conversions to finish. Currently running: {conversions_running}")
-                        conversions_running += 1
-                        markdown = self.pdf_to_markdown(data)
-                    finally:
-                        conversions_running -= 1
-                    skip_md = True
-
-                elif 'text/html' not in content_type:
+                    self.pdf_queue.put((page_url, data))
+                    if page_url not in self.visited:
+                        with self.lock:
+                            self.visited.add(page_url)
+                    # continue here allows to avoid waiting for PDF to MD conversion to finish
+                    print(url, page_url)
                     continue
-                if skip_md is False:
-                    markdown = htm.convert(response.text, options=self.options)
-                page_url = response.url or url  # Use the final URL after redirects if available
+
+                if 'text/html' not in content_type:
+                    continue
+                markdown = htm.convert(response.text, options=self.options)
                 if page_url not in self.visited:
                     with self.lock:
                         self.visited.add(page_url)
-                self.pages.append((page_url, markdown.content if skip_md is False else markdown)) # type: ignore
-                print(url, page_url)
+                # TODO: search for urls in pdfs too
+                res = db.insert(
+                    table="data.website",
+                    values={
+                        "url": page_url,
+                        "type": "pdf",
+                        "markdown": markdown.content
+                    }
+                )
 
-                if skip_md is True:
-                    continue
+                if res.is_error:
+                    print(f"\033[31mFailed to insert {url} into database: {res.error}\033[0m")
+                # self.pages.append((page_url, markdown.content if skip_md is False else markdown))
+                print(url, page_url)
 
                 soup = BeautifulSoup(response.text, 'html.parser')
                 base_tag = soup.find('base', href=True)
@@ -171,6 +272,13 @@ class ThreadedCrawler:
             self.visited.add(start_url)
             self.queue.put(start_url)
 
+        # Start parser threads
+        parser_threads = []
+        for server in self.parser_servers:
+            t = threading.Thread(target=self.parser, args=(self.pdf_queue, server))
+            t.start()
+            parser_threads.append(t)
+
         # Start worker threads
         threads = []
         for _ in range(self.max_threads):
@@ -186,6 +294,11 @@ class ThreadedCrawler:
         for _ in range(self.max_threads):
             self.queue.put(None)
         for t in threads:
+            t.join()
+
+        for _ in parser_threads:
+            self.pdf_queue.put(None)
+        for t in parser_threads:
             t.join()
 
         return self.visited
@@ -209,13 +322,13 @@ if __name__ == '__main__':
     for url in visited_urls:
         print(url)
 
-    pages = crawler.pages
+    # pages = crawler.pages
     print('saving pages to crawled_pages.json')
-    with open('crawled_pages.json', 'w') as f:
-        json.dump(pages, f, indent=4)
+    # with open('crawled_pages.json', 'w') as f:
+    #     json.dump(pages, f, indent=4)
     with open('stats_crawled.json', 'w') as f:
         json.dump({
             'visited_urls': list(visited_urls),
             'error_urls': list(crawler.error_urls),
-            'pages_count': len(pages)
+      #       'pages_count': len(pages)
         }, f, indent=4)
