@@ -40,15 +40,73 @@ We provide a dummy .env file:
     COOKIE_PATH=base_path_to_project_parent_folder/intrabot/login/cookies.pkl
     ```
 
-3. Run pipeline
+3. Set up the persistent storage and login to the chatbot in Postgres as well as the persistent storage for the crawling.<br/>
     ```bash
-    python3 -m login.login
-    python3 -m crawl.crawl_intranet
+    sudo -u postgres psql
+    CREATE USER <USERNAME>;
+    ALTER ROLE  <USERNAME> SET search_path = bot, auth, data;
+    CREATE DATABASE chlit OWNER <USERNAME>;
+    GRANT ALL PRIVILEGES ON DATABASE chlit TO <USERNAME>;
+    exit
+    psql -d chlit -f chatbot/data_storage/schema.sql
+    ```
+
+4. Run pipeline
+    This only has to be run once for setting up a TOTP-token for the 2FA-login to the intrant:
+    * Follow the instructions for adding a TOTP-token and instead of scanning the QR-code, copy the TOTP-secret and paste it into your .env file.
+    * Then run following:
+      ```python
+      from login.login import generate_totp
+
+      # insert your TOTP-SECRET here
+      print(generate_totp(<TOTP_SECRET>))
+      ```
+    * Paste the generated TOTP-token into the regarding field on the website to finish TOTP-setup.
+    ---
+    Now you can run the data crawling and indexing pipeline any time you want.
+
+    For crawling you need to start two separate session:
+    * In the first session run the parser that convert PDFs to Markdown documents.
+      ```bash
+      screen
+
+      # Enter
+
+      cd <WORKING DIRECTORY OF INTRABOT PROJECT>/intrabot
+      source venv/bin/activate
+
+      # this can be found in the module docstring of the crawl/crawl_intrabot.py file.
+      # Match the params NUM_GPUS, PER_GPU and DOCLING_SERVE_MAX_SYNC_WAIT (with the timeout parameter) to the code in that file.
+      NUM_GPUS=2
+      PER_GPU=10
+      for ((i=0; i<NUM_GPUS*PER_GPU; i++)); do
+          p=$((5001 + i))
+          gpu=$(( (p - 5001) % NUM_GPUS ))   # round-robin ports across GPUs
+          CUDA_VISIBLE_DEVICES=$gpu \
+          DOCLING_DEVICE=cuda \
+          DOCLING_NUM_THREADS=8 DOCLING_PERF_PAGE_BATCH_SIZE=4 \
+          DOCLING_SERVE_ENG_LOC_NUM_WORKERS=1 \
+          DOCLING_SERVE_MAX_SYNC_WAIT=600 \
+          docling-serve run --port $p &
+      done
+
+      # detach from the session
+      <Ctrl-A-D>
+      ```
+
+      Then crawl the websites.
+      ```bash
+      python3 -m crawl.crawl_everything
+      ```
+
+    Finally create the embeddings and add the lexical search to the database.\
+    *NOTE: The current approach only needs lexical search, no embeddings. Save yourself some time and skip creating the embeddings. Only use the part needed for generating the lexical search.*
+    ```bash
     python3 -m search.create_embeddings
     python3 -m search.add_lexical_search
     ```
 
-4. Start LLM-Backend with vLLM<br/>
+5. Start LLM-Backend with vLLM<br/>
   For `tensor-parallel-size` specify the amount of individual GPUs you plan on using.
   Note, that nemotron-3.5-super has a max model length of 1_000_000 tokens.
     ```bash
@@ -87,19 +145,7 @@ We provide a dummy .env file:
     sudo systemctl daemon-reload
     sudo systemctl enable vllm.service
     sudo systemctl start vllm.service
-    ```
-
-5. Set up the persistent storage and login to the chatbot in Postgres.<br/>
-    ```bash
-    sudo -u postgres psql
-    CREATE USER <USERNAME>;
-    ALTER ROLE  <USERNAME> SET search_path = bot, auth, data;
-    CREATE DATABASE chlit OWNER <USERNAME>;
-    GRANT ALL PRIVILEGES ON DATABASE chlit TO <USERNAME>;
-    exit
-    psql -d chlit -f chatbot/data_storage/schema.sql
-    ```
-    
+    ```    
 
 
 6. Finally run your intrabot chatbot with the first command or intraSearch with the second command
@@ -118,3 +164,4 @@ We provide a dummy .env file:
 * add login for collab bayern as it does not allow totp
 * in create_embeddings.py: optimize memory: currently saving full doc for each chunk: a lot of redundant data
 * create src/ package folder structure
+ture
