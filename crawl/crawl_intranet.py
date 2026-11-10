@@ -4,7 +4,7 @@ This script implements a threaded web crawler that starts from a given URL and c
 Start the backend using:
 ```bash
 NUM_GPUS=2
-PER_GPU=15
+PER_GPU=10
 for ((i=0; i<NUM_GPUS*PER_GPU; i++)); do
     p=$((5001 + i))
     gpu=$(( (p - 5001) % NUM_GPUS ))   # round-robin ports across GPUs
@@ -12,6 +12,7 @@ for ((i=0; i<NUM_GPUS*PER_GPU; i++)); do
     DOCLING_DEVICE=cuda \
     DOCLING_NUM_THREADS=8 DOCLING_PERF_PAGE_BATCH_SIZE=4 \
     DOCLING_SERVE_ENG_LOC_NUM_WORKERS=1 \
+    DOCLING_SERVE_MAX_SYNC_WAIT=600 \
     docling-serve run --port $p &
 done
 ```
@@ -27,31 +28,18 @@ from urllib.parse import urljoin, urlparse
 import html_to_markdown as htm
 import requests
 from bs4 import BeautifulSoup
-from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
-from docling.datamodel.base_models import DocumentStream, InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode
-from docling.document_converter import DocumentConverter, PdfFormatOption
 from dotenv import load_dotenv
 from postql import DB
-from postql.types import Credentials
+from postql.types import ANSWER_TYPE, Credentials
 from requests import Session
+# from psycopg.errors import UniqueViolation
 
 from login.login import load_session
 
 load_dotenv()
 
-opts = PdfPipelineOptions()
-opts.do_ocr = False
-opts.do_table_structure = True
-opts.table_structure_options.mode = TableFormerMode.FAST # type: ignore
-opts.accelerator_options = AcceleratorOptions(num_threads=32, device=AcceleratorDevice.CUDA)
-
-converter = DocumentConverter(
-    format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)}
-)
-
 NUM_GPUS = 2
-PER_GPU = 15
+PER_GPU = 6
 DOCLING_SERVERS = [f"http://localhost:{p}" for p in (5001 + i for i in range(NUM_GPUS * PER_GPU))]
 
 page_break = "---Page Break---"
@@ -92,7 +80,7 @@ class ThreadedCrawler:
         visited: set[str] | None = None):
 
         self.start_urls = start_urls
-        self.pdf_queue = Queue(maxsize=NUM_GPUS * PER_GPU * 10)
+        self.pdf_queue = Queue(maxsize=NUM_GPUS * PER_GPU * 2)
         self.parser_servers = DOCLING_SERVERS
         self.num_parsers = len(DOCLING_SERVERS)
         self.queue = Queue()
@@ -117,6 +105,7 @@ class ThreadedCrawler:
             clean_url += f'?{parsed.query}'
         return clean_url
 
+    """
     def pdf_to_markdown(self, data: bytes) -> str:
         '''
         Convert PDF bytes to Markdown format.
@@ -131,6 +120,7 @@ class ThreadedCrawler:
         result = converter.convert(stream)
         md_doc = result.document.export_to_markdown(page_break_placeholder=page_break)
         return md_doc
+    """
 
     def convert_pdf(self, data: bytes, server_url) -> str:
         stream = BytesIO(data)
@@ -150,7 +140,7 @@ class ThreadedCrawler:
                 "do_table_structure": "true",
                 "table_mode": "fast",
             },
-            timeout=600,
+            timeout=1800,
         )
 
         response.raise_for_status()
@@ -171,6 +161,15 @@ class ThreadedCrawler:
 
             try:
                 url, file = item
+                res = db.select(
+                    table="data.website",
+                    type_of_answer=ANSWER_TYPE.SINGLE_ANSWER,
+                    columns=["id"],
+                    conditions={"url": url}
+                )
+                if res.is_success and len(res.data) > 0:
+                        print(f"\033[32mSkipping {url} as it already exists in the database: {res.data}.\033[0m")
+                        continue
                 md = self.convert_pdf(file, server)
                 res = db.insert(
                     table="data.website",
@@ -183,6 +182,7 @@ class ThreadedCrawler:
 
                 if res.is_error:
                     print(f"\033[31mFailed to insert {url} into database: {res.error}\033[0m")
+                print(url)
             except Exception as e:
                 print(f"Error processing {url}: {e}")
 
@@ -217,7 +217,7 @@ class ThreadedCrawler:
                         with self.lock:
                             self.visited.add(page_url)
                     # continue here allows to avoid waiting for PDF to MD conversion to finish
-                    print(url, page_url)
+                    # print(url, page_url)
                     continue
 
                 if 'text/html' not in content_type:
@@ -231,15 +231,17 @@ class ThreadedCrawler:
                     table="data.website",
                     values={
                         "url": page_url,
-                        "type": "pdf",
+                        "type": "website",
                         "markdown": markdown.content
                     }
                 )
-
+                # if res.is_error and isinstance(res.error, UniqueViolation):
+                #     pass
                 if res.is_error:
                     print(f"\033[31mFailed to insert {url} into database: {res.error}\033[0m")
                 # self.pages.append((page_url, markdown.content if skip_md is False else markdown))
-                print(url, page_url)
+                else:
+                    print(url, page_url)
 
                 soup = BeautifulSoup(response.text, 'html.parser')
                 base_tag = soup.find('base', href=True)
@@ -311,7 +313,7 @@ if __name__ == '__main__':
     crawler = ThreadedCrawler(
         session,
         [start_url],
-        max_threads=(os.cpu_count() or 32) * 10,
+        max_threads=(os.cpu_count() or 32) * 7,
         whitelisted_domains={r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de(/.*)?$', r'^https://brand-portal\.uni-augsburg\.de(/.*)?$', r'^https://my\.corebook\.io/uni-augsburg(/.*)?$'}, # , r'^https://collab\.dv\b.bayern(/.*)?$'
         blacklisted_domains={r'^https://collab.dvb.bayern/users(/.*)?$', r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de/en(/.*)?$', r'^https://collab\.dvb\.bayern/login.action\?.*?$', r'^https://www\.uni-augsburg\.de/admin/login([/?].*)?$', r'^https://collab.dvb.bayern(/.*)?$', r'^https://www.uni-augsburg.de/admin/logout([/?].*)?', r'^https://www.uni-augsburg.de/auth([/?].*)?'},
         timeout=60,
