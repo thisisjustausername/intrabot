@@ -23,12 +23,15 @@ except FileNotFoundError:
 previously_visited_urls = set(stats.get('visited_urls', [])) if stats else None
 previously_error_urls = set(stats.get('error_urls', [])) if stats else None
 
+whitelisted_domains = {r'^https://([a-zA-Z0-9-]+\.)?uni-augsburg\.de(/.*)?$', r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de(/.*)?$', r'^https://brand-portal\.uni-augsburg\.de(/.*)?$', r'^https://my\.corebook\.io/uni-augsburg(/.*)?$'} # , r'^https://collab\.dv\b.bayern(/.*)?$'
+blacklisted_domains = {r'^https://collab.dvb.bayern/users(/.*)?$', r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de/en(/.*)?$', r'^https://collab\.dvb\.bayern/login.action\?.*?$', r'^https://www\.uni-augsburg\.de/admin/login([/?].*)?$', r'^https://collab.dvb.bayern(/.*)?$', r'^https://www.uni-augsburg.de/admin/logout([/?].*)?', r'^https://www.uni-augsburg.de/auth([/?].*)?'}
+
 crawler = ThreadedCrawler(
     session,
     start_urls,
     max_threads=(os.cpu_count() or 32) * 10,
-    whitelisted_domains={r'^https://([a-zA-Z0-9-]+\.)?uni-augsburg\.de(/.*)?$', r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de(/.*)?$', r'^https://brand-portal\.uni-augsburg\.de(/.*)?$', r'^https://my\.corebook\.io/uni-augsburg(/.*)?$'}, # , r'^https://collab\.dv\b.bayern(/.*)?$'
-    blacklisted_domains={r'^https://collab.dvb.bayern/users(/.*)?$', r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de/en(/.*)?$', r'^https://collab\.dvb\.bayern/login.action\?.*?$', r'^https://www\.uni-augsburg\.de/admin/login([/?].*)?$', r'^https://collab.dvb.bayern(/.*)?$', r'^https://www.uni-augsburg.de/admin/logout([/?].*)?', r'^https://www.uni-augsburg.de/auth([/?].*)?'},
+    whitelisted_domains=whitelisted_domains,
+    blacklisted_domains=blacklisted_domains,
     timeout=60,
     visited=previously_visited_urls.union(previously_error_urls) if previously_visited_urls is not None else None # type: ignore
 )
