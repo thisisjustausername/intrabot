@@ -1,17 +1,25 @@
-import json
+import os
 
 import bm25s
 import Stemmer  # type: ignore
+from dotenv import load_dotenv
+from postql import DB
+from postql.types import ANSWER_TYPE, Credentials
+
+load_dotenv()
+
+creds = Credentials(
+    user=os.environ.get("USERDB"), # type: ignore
+    password=os.environ.get("POSTGRES_PASSWORD"), # type: ignore
+    host=os.environ.get("POSTGRES_HOST"), # type: ignore
+    port=int(os.environ.get("PORT")), # type: ignore
+    database_name=os.environ.get("DBNAME") # type: ignore
+)
+
+db = DB(creds)
 
 reloaded_retriever = bm25s.BM25.load('uni_all_retriever', load_corpus=True)
 stemmer = Stemmer.Stemmer('german')
-
-with open('full_docs.json', 'r') as f:
-    docs_data = json.load(f)
-urls = [i[0] for i in docs_data]
-if len(urls) != len(set(urls)):
-    raise ValueError('Duplicate urls found in full_docs.json')
-docs = {doc[0]: doc[1] for doc in docs_data}
 
 def search_bm25(query: str, k: int = 15) -> list[tuple[str, str, float]]:
     '''
@@ -54,7 +62,21 @@ def get_full_page(url: str) -> str:
     Returns:
         str: the full page content
     '''
-    return docs.get(url, 'No content found for this url, this url might be invalid')
+    res = db.select(
+        table='data.website',
+        type_of_answer=ANSWER_TYPE.SINGLE_ANSWER,
+        columns=['markdown'],
+        conditions={'url': url}
+    )
+    if res.is_error:
+        print(f"Error fetching data from database: {res.error}")
+        return 'Error occurred querying the database!!!'
+        # raise Exception(f"Error fetching data from database")
+    data = res.data
+    if data and len(data) > 0:
+        return data['markdown']
+    return 'No content found for this url, this url might be invalid'
+    # return docs.get(url, 'No content found for this url, this url might be invalid')
 
 
 if __name__ == '__main__':

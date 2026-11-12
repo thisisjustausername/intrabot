@@ -100,10 +100,8 @@ We provide a dummy .env file:
       ```
 
     Finally create the embeddings and add the lexical search to the database.\
-    *NOTE: The current approach only needs lexical search, no embeddings. Save yourself some time and skip creating the embeddings. Only use the part needed for generating the lexical search.*
     ```bash
-    python3 -m search.create_embeddings
-    python3 -m search.add_lexical_search
+    python3 -m search.create_lexical_search
     ```
 
 5. Start LLM-Backend with vLLM<br/>
