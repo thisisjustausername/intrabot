@@ -32,8 +32,8 @@ from dotenv import load_dotenv
 from postql import DB
 from postql.types import ANSWER_TYPE, Credentials
 from requests import Session
-# from psycopg.errors import UniqueViolation
 
+# from psycopg.errors import UniqueViolation
 from login.login import load_session
 
 load_dotenv()
@@ -161,6 +161,8 @@ class ThreadedCrawler:
 
             try:
                 url, file = item
+                # TODO: remove this check as it is already being covered in the worker
+                '''
                 res = db.select(
                     table="data.website",
                     type_of_answer=ANSWER_TYPE.SINGLE_ANSWER,
@@ -170,6 +172,7 @@ class ThreadedCrawler:
                 if res.is_success and len(res.data) > 0:
                         print(f"\033[32mSkipping {url} as it already exists in the database: {res.data}.\033[0m")
                         continue
+                '''
                 md = self.convert_pdf(file, server)
                 res = db.insert(
                     table="data.website",
@@ -197,6 +200,19 @@ class ThreadedCrawler:
                 response = self.session.get(url, timeout=self.timeout, allow_redirects=True)
                 content_type = response.headers.get('Content-Type', '')
                 page_url = response.url or url  # Use the final URL after redirects if available
+                res = db.select(
+                    table="data.website",
+                    type_of_answer=ANSWER_TYPE.SINGLE_ANSWER,
+                    columns=["id"],
+                    conditions={"url": page_url}
+                )
+                if res.is_success and len(res.data) > 0:
+                    print(f"\033[32mSkipping {page_url} as it already exists in the database: {res.data}.\033[0m")
+                    if page_url not in self.visited:
+                        with self.lock:
+                            self.visited.add(page_url)
+                    continue
+                # TODO: remove db.select check in parser as it is already being covered here
                 if response.status_code != 200:
                     continue
                 if content_type == 'application/pdf':
@@ -223,6 +239,7 @@ class ThreadedCrawler:
                 if 'text/html' not in content_type:
                     continue
                 markdown = htm.convert(response.text, options=self.options)
+                print(markdown.content)
                 if page_url not in self.visited:
                     with self.lock:
                         self.visited.add(page_url)
@@ -258,6 +275,7 @@ class ThreadedCrawler:
                     ll = link.strip().lower()
                     if not any(re.match(i, ll) for i in self.whitelisted_domains): continue
                     if any(re.match(i, ll) for i in self.blacklisted_domains): continue
+                    print(link)
                     with self.lock:
                         if link not in self.visited:
                             self.visited.add(link)
