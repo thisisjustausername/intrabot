@@ -24,7 +24,7 @@ previously_visited_urls = set(stats.get('visited_urls', [])) if stats else None
 previously_error_urls = set(stats.get('error_urls', [])) if stats else None
 
 whitelisted_domains = {r'^https://([a-zA-Z0-9-]+\.)?uni-augsburg\.de(/.*)?$', r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de(/.*)?$', r'^https://brand-portal\.uni-augsburg\.de(/.*)?$', r'^https://my\.corebook\.io/uni-augsburg(/.*)?$'} # , r'^https://collab\.dv\b.bayern(/.*)?$'
-blacklisted_domains = {r'^https://collab.dvb.bayern/users(/.*)?$', r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de/en(/.*)?$', r'^https://collab\.dvb\.bayern/login.action\?.*?$', r'^https://www\.uni-augsburg\.de/admin/login([/?].*)?$', r'^https://collab.dvb.bayern(/.*)?$', r'^https://www.uni-augsburg.de/admin/logout([/?].*)?', r'^https://www.uni-augsburg.de/auth([/?].*)?'}
+blacklisted_domains = {r'^https://collab.dvb.bayern/users(/.*)?$', r'^https://www\.([a-zA-Z0-9-]+\.)?uni-augsburg\.de/en(/.*)?$', r'^https://collab\.dvb\.bayern/login.action\?.*?$', r'^https://www\.uni-augsburg\.de/admin/login([/?].*)?$', r'^https://collab.dvb.bayern(/.*)?$', r'^https://www.uni-augsburg.de/admin/logout([/?].*)?', r'^https://www.uni-augsburg.de/auth([/?].*)?', r'^https://staging.uni-augsburg.de([/?].*)'}
 
 crawler = ThreadedCrawler(
     session,
