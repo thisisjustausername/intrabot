@@ -34,6 +34,7 @@ from mhbai.student_counselor.langgraph.tools import (
 from pydantic import SecretStr
 from typing_extensions import TypedDict
 
+from chatbot import auth, signup  # noqa: F401
 from chatbot.tools import (
     dirty_search,
     full_page,
@@ -54,7 +55,7 @@ USERDB = os.getenv('USERDB')
 HOST = os.getenv('HOST')
 PORT = os.getenv('PORT')
 DBNAME = os.getenv('DBNAME')
-PASSWORD = quote_plus(os.getenv('PASSWORD', ''))
+PASSWORD = quote_plus(os.getenv('POSTGRES_PASSWORD', ''))
 
 conninfo = f"postgresql+asyncpg://{USERDB}:{PASSWORD}@{HOST}:{PORT}/{DBNAME}"
 
@@ -408,3 +409,21 @@ async def end():
     thread_id = cl.user_session.get("thread_id")
     if thread_id and thread_id in checkpointer.storage:
         checkpointer.storage.pop(thread_id)
+
+
+@cl.password_auth_callback
+def auth_callback(username: str, password: str):
+    """
+    checks, whether a user exists and whether user is logged in (if exists and not logged in, session is created)
+    """
+
+    if not password or not username:
+        return
+
+    # get user data from table
+    result = auth.get_user(username=username)
+    print(result)
+    if result is None or not auth.match_pwd(password, result['password']):
+        return
+
+    return cl.User(identifier=username, metadata={"role": result['role'], 'provider': 'credentials'})

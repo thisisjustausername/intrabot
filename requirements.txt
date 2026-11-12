@@ -1,5 +1,4 @@
 requests
-chainlit
 bs4
 lxml
 html-to-markdown
@@ -13,16 +12,17 @@ langgraph
 tqdm
 langchain_text_splitters
 bm25
-mineru
 asyncpg
 SQLAlchemy
 greenlet
 sqlalchemy[asyncio]
 langgraph-checkpoint-mongodb
-msgpack
 langfuse
 vllm>=0.33.0
 json5
 docling
 onnxruntime-gpu
 torchaudio
+flask
+waitress
+chainlit

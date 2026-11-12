@@ -10,25 +10,10 @@ CREATE TYPE DATA_TYPE AS ENUM ('website', 'pdf', 'image');
 
 -- table to save users
 CREATE TABLE IF NOT EXISTS auth.users (
-    "id" SERIAL PRIMARY KEY,
+    "id" UUID PRIMARY KEY,
+    "identifier" TEXT NOT NULL UNIQUE,
     "metadata" JSONB NOT NULL,
-    "first_name" TEXT NOT NULL,
-    "last_name" TEXT NOT NULL,
-    "password_hash" VARCHAR(255) NOT NULL,
-    "email" VARCHAR(255) UNIQUE CHECK(email ~ '^[A-Za-z]+\.[A-Za-z0-9]+@(?=[^@]*uni)(?=[^@]*a)[A-Za-z0-9.-]+\.de$'),
-    "created_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    "user_uuid" UUID UNIQUE NOT NULL, -- added for personal references, not as easy to guess as id
-    "user_name" TEXT NOT NULL,
-    "permissions" USER_ROLE NOT NULL DEFAULT 'user'
-);
-
-CREATE TABLE IF NOT EXISTS auth.verification_codes (
-    "id" SERIAL PRIMARY KEY,
-    "user_id" INTEGER REFERENCES auth.users("id") ON DELETE CASCADE,
-    "reset_code" UUID UNIQUE NOT NULL,
-    "additional_data" JSONB DEFAULT NULL, -- to store optional changes in users
-    "used" BOOLEAN DEFAULT FALSE NOT NULL,
-    "created_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TEXT
 );
 
 
@@ -40,7 +25,7 @@ CREATE TABLE IF NOT EXISTS bot.threads (
     "userIdentifier" TEXT,
     "tags" TEXT[],
     "metadata" JSONB,
-    FOREIGN KEY ("userId") REFERENCES auth.users("user_uuid") ON DELETE CASCADE
+    FOREIGN KEY ("userId") REFERENCES auth.users("id") ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS bot.steps (
@@ -102,5 +87,13 @@ CREATE TABLE IF NOT EXISTS data.website (
     "url" TEXT NOT NULL UNIQUE,
     "type" DATA_TYPE NOT NULL,
     "markdown" TEXT NOT NULL,
+    "created_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS data.auth_users (
+    "id" SERIAL PRIMARY KEY,
+    "username" TEXT NOT NULL UNIQUE,
+    "password" TEXT NOT NULL,
+    "role" USER_ROLE NOT NULL DEFAULT 'user',
     "created_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );

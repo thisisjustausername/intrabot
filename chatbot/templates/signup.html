@@ -1,0 +1,368 @@
+<title>Intrabot Signup</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&family=Unica+One&display=swap">
+<style>
+/* Layout: one centered card on a quiet field; one form, one primary action, errors sit under the field they belong to. */
+:root {
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --ink: #14202e;
+  --muted: #5b6878;
+  --line: #cfd6e0;
+  --accent: #0b6b63;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2f1ef;
+  --error: #b42318;
+  --error-soft: #fdecea;
+  --focus: #0b6b63;
+  --font-display: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e141b;
+    --surface: #161e28;
+    --ink: #e8edf3;
+    --muted: #93a1b3;
+    --line: #2c3947;
+    --accent: #3fc1b0;
+    --accent-ink: #06211e;
+    --accent-soft: #14312f;
+    --error: #ff8a7a;
+    --error-soft: #3a1f1c;
+    --focus: #3fc1b0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e141b;
+  --surface: #161e28;
+  --ink: #e8edf3;
+  --muted: #93a1b3;
+  --line: #2c3947;
+  --accent: #3fc1b0;
+  --accent-ink: #06211e;
+  --accent-soft: #14312f;
+  --error: #ff8a7a;
+  --error-soft: #3a1f1c;
+  --focus: #3fc1b0;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  padding-block: 8vh 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex;
+  justify-content: center;
+}
+main { width: 100%; max-width: 420px; min-width: 0; }
+
+.brand {
+  font-family: "Unica One", Impact, "Arial Narrow", sans-serif;
+  font-weight: 400;
+  font-size: clamp(2.6rem, 14vw, 3.5rem);
+  line-height: 1;
+  letter-spacing: 0.14em;
+  margin: 0 0 24px;
+  display: block;
+  width: fit-content;
+  margin-inline: auto;
+  padding-left: 0.14em; /* balances the trailing letter-spacing so the word sits optically centered */
+  color: #f09c2c;
+  background: linear-gradient(90deg, #f09c2c 0%, #f09c2c 38%, #5fd3a8 58%, #08e8ef 78%, #8aeef2 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 32px 28px;
+}
+h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.75rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+  text-wrap: balance;
+}
+.lede { color: var(--muted); margin: 0 0 28px; font-size: 0.95rem; }
+
+form { display: flex; flex-direction: column; gap: 20px; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+label { font-size: 0.85rem; font-weight: 600; }
+
+.control {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.control:focus-within {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent);
+}
+.field.invalid .control {
+  border-color: var(--error);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--error) 18%, transparent);
+}
+input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  padding: 12px 14px;
+}
+
+.toggle {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  margin-right: 4px;
+  cursor: pointer;
+}
+.toggle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.toggle:hover { background: var(--accent-soft); color: var(--accent); }
+.toggle:focus-visible, .btn:focus-visible, .link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.msg {
+  display: none;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--error);
+  background: var(--error-soft);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.field.invalid .msg { display: block; }
+
+.btn {
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 0;
+  border-radius: 10px;
+  padding: 13px 16px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.05s;
+}
+.btn:hover:not(:disabled) { opacity: 0.92; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled {
+  cursor: not-allowed;
+  background: var(--line);
+  color: var(--muted);
+}
+
+.note { margin: 20px 0 0; font-size: 0.8rem; color: var(--muted); }
+.note b { font-weight: 600; color: var(--ink); }
+
+.done h1 { margin-bottom: 10px; }
+.done p { margin: 0 0 24px; color: var(--muted); }
+.done a { color: var(--accent); font-weight: 600; text-underline-offset: 3px; }
+.done a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.done .handle { color: var(--ink); font-weight: 600; }
+.link {
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 440px) {
+  .card { padding: 24px 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+
+<main>
+  <p class="brand">INTRABOT</p>
+
+  <section class="card" id="signup-card">
+    <div id="form-view">
+      <h1>Konto erstellen</h1>
+      <p class="lede">Wähle einen Benutzernamen und ein Passwort. Mehr brauchen wir nicht.</p>
+
+      <form id="signup-form" novalidate>
+        <div class="field" id="user-field">
+          <label for="username">Benutzername</label>
+          <div class="control">
+            <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="username-msg">
+          </div>
+          <p class="msg" id="username-msg" role="alert"></p>
+        </div>
+
+        <div class="field">
+          <label for="password">Passwort</label>
+          <div class="control">
+            <input id="password" name="password" type="password" autocomplete="new-password">
+            <button type="button" class="toggle" id="pw-toggle" aria-pressed="false" aria-controls="password" aria-label="Passwort anzeigen" title="Passwort anzeigen">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <g id="eye-open"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></g>
+                <g id="eye-off" hidden><path d="M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.5 6.6C3.7 8.3 2 12 2 12s3.6 7 10 7c1.7 0 3.2-.4 4.5-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></g>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn" id="submit-btn" disabled>Konto erstellen</button>
+      </form>
+
+    </div>
+
+    <div class="done" id="done-view" hidden>
+      <h1>Willkommen bei Intrabot</h1>
+      <p>Dein Konto <span class="handle" id="done-name"></span> wurde erstellt.</p>
+      <p>Du wirst in 3 Sekunden automatisch zum <a id="login-link" href="/">Login</a> weitergeleitet.</p>
+
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  // Same origin as the page, so no CORS setup is needed.
+   var SIGNUP_URL = window.location.pathname.replace(/\/+$/, "");
+
+  function postJson(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+  }
+  function showTaken(name, keepPwNote) {
+    userField.classList.add("invalid");
+    user.setAttribute("aria-invalid", "true");
+    userMsg.textContent = "„" + name + "“ ist bereits vergeben. Bitte wähle einen anderen Benutzernamen.";
+  }
+  function showServerError() {
+    userField.classList.add("invalid");
+    userMsg.textContent = "Der Server ist gerade nicht erreichbar. Bitte versuche es gleich noch einmal.";
+  }
+
+  var form = document.getElementById("signup-form");
+  var user = document.getElementById("username");
+  var pw = document.getElementById("password");
+  var userField = document.getElementById("user-field");
+  var userMsg = document.getElementById("username-msg");
+  var btn = document.getElementById("submit-btn");
+  var toggle = document.getElementById("pw-toggle");
+  var formView = document.getElementById("form-view");
+  var doneView = document.getElementById("done-view");
+  var doneName = document.getElementById("done-name");
+  var eyeOpen = document.getElementById("eye-open");
+  var eyeOff = document.getElementById("eye-off");
+  var busy = false;
+
+  function setToggle(show) {
+    pw.type = show ? "text" : "password";
+    // SVG elements have no .hidden property, so toggle the attribute directly
+    if (show) { eyeOpen.setAttribute("hidden", ""); eyeOff.removeAttribute("hidden"); }
+    else { eyeOff.setAttribute("hidden", ""); eyeOpen.removeAttribute("hidden"); }
+    var label = show ? "Passwort verbergen" : "Passwort anzeigen";
+    toggle.setAttribute("aria-label", label);
+    toggle.setAttribute("title", label);
+    toggle.setAttribute("aria-pressed", show ? "true" : "false");
+  }
+
+  function isReady() {
+    return user.value.trim() !== "" && pw.value !== "";
+  }
+  function sync() {
+    btn.disabled = busy || !isReady();
+  }
+  function clearError() {
+    userField.classList.remove("invalid");
+    user.removeAttribute("aria-invalid");
+    userMsg.textContent = "";
+  }
+
+  user.addEventListener("input", function () { clearError(); sync(); });
+  pw.addEventListener("input", sync);
+
+  toggle.addEventListener("click", function () {
+    setToggle(pw.type === "password");
+    pw.focus();
+  });
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (busy || !isReady()) return;
+
+    var name = user.value.trim();
+    busy = true;
+    btn.textContent = "Wird geprüft...";
+    sync();
+
+    function finish() {
+      busy = false;
+      btn.textContent = "Konto erstellen";
+      sync();
+    }
+    function taken() {
+      // Username taken: the password stays in its field
+      finish();
+      showTaken(name, true);
+      user.focus();
+      user.select();
+    }
+
+    postJson(SIGNUP_URL, { username: name, password: pw.value })
+      .then(function (res) {
+        if (res.status === 409) return taken();   // username already exists
+        if (res.status === 400) {
+          finish();
+          userField.classList.add("invalid");
+          userMsg.textContent = "Bitte prüfe deine Eingaben.";
+          return;
+        }
+        if (!res.ok) throw new Error("HTTP " + res.status);
+
+        finish();
+        doneName.textContent = name;
+        formView.hidden = true;
+        doneView.hidden = false;
+        var loginUrl = window.location.pathname.replace(/\/signup\/?$/, "/login");
+        document.getElementById("login-link").href = loginUrl;
+        setTimeout(function () { window.location.href = loginUrl; }, 3000);
+      })
+      .catch(function () {
+        finish();
+        showServerError();
+      });
+  });
+
+  sync();
+})();
+</script>
