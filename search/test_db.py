@@ -36,3 +36,5 @@ if __name__ == "__main__":
     non_existing_url = 'https://www.nonexistenturl.com'
     print(search_db(existing_url))
     print(search_db(non_existing_url))
+
+    db.shutdown()
