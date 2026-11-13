@@ -4,6 +4,7 @@
 Run using: python3 -m chainlit run chatbot/graph.py --host 127.0.0.1 --port 8001 --root-path /intrabot
 Serve vllm as followed: vllm serve --model nvidia/Qwen3.8-27B-NVFP4 --max-model-len 262144 --port 8000 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --tensor-parallel-size 2
 '''
+from chainlit.types import ThreadDict
 
 
 import asyncio
@@ -15,7 +16,7 @@ from urllib.parse import quote_plus
 import chainlit as cl
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
 from dotenv import load_dotenv
-from langchain.messages import AnyMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain.messages import AnyMessage, AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core._api.beta_decorator import LangChainBetaWarning
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_openai import ChatOpenAI
@@ -427,3 +428,22 @@ def auth_callback(username: str, password: str):
         return
 
     return cl.User(identifier=username, metadata={"role": result['role'], 'provider': 'credentials'})
+
+@cl.on_chat_resume
+async def on_chat_resume(thread: ThreadDict):
+    thread_id = thread["id"]
+    cl.user_session.set("thread_id", thread_id)
+    cl.user_session.set("chat_history", [])
+    history = []
+    for step in thread["steps"]:
+        output = step.get("output")
+        if not output:
+            continue
+        if step["type"] == "user_message":
+            history.append(HumanMessage(content=output))
+        elif step["type"] == "assistant_message":
+            history.append(AIMessage(content=output))
+
+    if history:
+        config = {"configurable": {"thread_id": thread_id}}
+        await agent.aupdate_state(config, {"messages": history}, as_node=START)
