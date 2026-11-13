@@ -1,6 +1,6 @@
 import os
-import bcrypt
 
+import bcrypt
 from dotenv import load_dotenv
 from postql import DB
 from postql.types import ANSWER_TYPE, Credentials
