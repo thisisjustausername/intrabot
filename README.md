@@ -119,6 +119,16 @@ We provide a dummy .env file:
       --reasoning-parser nemotron_v3 \
     --limit-mm-per-prompt '{"image":2,"video":0}'
     ```
+    or for Qwen-3.8:
+    ```bash
+    vllm serve <WORKING DIRECTORY OF INTRABOT PROJECT>/model/nvidia/Qwen3.8-27B-NVFP4 \
+        --max-model-len 262144 \
+        --port 8000 \
+        --reasoning-parser qwen3 \
+        --enable-auto-tool-choice \
+        --tool-call-parser qwen3_coder \
+        --tensor-parallel-size 2
+    ```
     In case you do not want to restart vLLM on every bootup, set a systemd-service as followed.
     ```ini
     [Unit]
@@ -138,6 +148,27 @@ We provide a dummy .env file:
     [Install]
     WantedBy=multi-user.target
     ```
+
+    or for Qwen-3.8:
+    ```ini
+    [Unit]
+    Description=Running vllm for intrabot intranet chatbot from intrabot project by Leon Gattermeyer
+    After=network.target
+    
+    [Service]
+    Type=simple
+    User=<USERNAME>
+    WorkingDirectory=<WORKING DIRECTORY OF INTRABOT PROJECT>
+    Environment="PATH=<WORKING DIRECTORY OF INTRABOT PROJECT>/venv/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    Environment="VIRTUAL_ENV=<WORKING DIRECTORY OF INTRABOT PROJECT>/venv"
+    Environment="CUDA_HOME=/usr/local/cuda"
+    ExecStart=<WORKING DIRECTORY OF INTRABOT PROJECT>/venv/bin/vllm serve <WORKING DIRECTORY OF INTRABOT PROJECT>/model/nvidia/Qwen3.8-27B-NVFP4 --max-model-len 262144 --port 8000 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --tensor-parallel-size 2
+    Restart=always
+    
+    [Install]
+    WantedBy=multi-user.target
+    ```
+
     Then simply enable and start the service.
     ```bash
     sudo systemctl daemon-reload
@@ -155,6 +186,7 @@ We provide a dummy .env file:
     ```
 
 # IMPORTANT TODOS
+* Try and benchmark CoT
 * Split XML MHBS into modules exams etc as usual but keep the xml, then convert xml to md and for each document (same splitting as in current version) save md card and maybe infocard plus optionally use chunking, then create own vector db or together with intranet db but add filter options like classes of source.
 * Set maximum amount of tool calls
 * Fix search result order for mongodb (search informatik e.g.)

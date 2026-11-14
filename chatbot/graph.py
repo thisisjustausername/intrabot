@@ -4,9 +4,6 @@
 Run using: python3 -m chainlit run chatbot/graph.py --host 127.0.0.1 --port 8001 --root-path /intrabot
 Serve vllm as followed: vllm serve --model nvidia/Qwen3.8-27B-NVFP4 --max-model-len 262144 --port 8000 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --tensor-parallel-size 2
 '''
-from chainlit.types import ThreadDict
-
-
 import asyncio
 import os
 import warnings
@@ -15,8 +12,15 @@ from urllib.parse import quote_plus
 
 import chainlit as cl
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
+from chainlit.types import ThreadDict
 from dotenv import load_dotenv
-from langchain.messages import AnyMessage, AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain.messages import (
+    AIMessage,
+    AnyMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langchain_core._api.beta_decorator import LangChainBetaWarning
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_openai import ChatOpenAI
@@ -60,10 +64,9 @@ PASSWORD = quote_plus(os.getenv('POSTGRES_PASSWORD', ''))
 
 conninfo = f"postgresql+asyncpg://{USERDB}:{PASSWORD}@{HOST}:{PORT}/{DBNAME}"
 
-mdl = 'qwen3.8:27b'
-mdl = 'nvidia/Qwen3.8-27B-NVFP4'
-mdl = 'nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-NVFP4'
+# mdl = 'qwen3.8:27b'
 mdl = 'nemotron-3.5-super'
+mdl = 'nvidia/Qwen3.8-27B-NVFP4'
 ################################################################
 '''
 Initialize vector database and model
@@ -142,6 +145,12 @@ tools = [
 tools_by_name = {tool.name: tool for tool in tools}
 model_with_tools = model.bind_tools(tools, parallel_tool_calls=True)
 
+"""
+Überlege vor jeder Aktion Schritt für Schritt, was du weißt, was fehlt
+und was der beste nächste Schritt ist.
+Manche umfangreichere oder komplexere Aufgaben können in mehrere einfache Schritte aufgeteilt werden. Falls das Problem schwer ist, mache das und löse die einzelnen Teilschritte´, um das gesamte Problem zu lösen.
+Handle erst danach.
+"""
 
 system_prompt = '''Du bist ein hochpräziser Assistent für die Website Universität Augsburg.
 Du berätst Mitarbeitende und hast Zugriff auf das Intranet und den öffentlichen Bereich der Universität Augsburg Website.

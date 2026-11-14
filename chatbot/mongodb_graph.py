@@ -25,8 +25,8 @@ def log_request(request):
 load_dotenv()
 
 embeddings = OllamaEmbeddings(model='qwen3-embedding')
-mdl = 'nvidia/Qwen3.8-27B-NVFP4'
 mdl = 'nemotron-3.5-super'
+mdl = 'nvidia/Qwen3.8-27B-NVFP4'
 
 llm = ChatOpenAI(
     http_client=httpx.Client(event_hooks={"request": [log_request]}),
