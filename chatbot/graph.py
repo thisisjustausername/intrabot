@@ -3,12 +3,25 @@
 
 Run using: python3 -m chainlit run chatbot/graph.py --host 127.0.0.1 --port 8001 --root-path /intrabot
 Serve vllm as followed: vllm serve --model nvidia/Qwen3.8-27B-NVFP4 --max-model-len 262144 --port 8000 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --tensor-parallel-size 2
+
+We favour running Qwen3.8-Flash-Next from unsloth in GGUF-format:
+
+./llama.cpp/build/bin/llama-server \
+	--model unsloth/Qwen3.8-Flash-Next-GGUF/UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf \
+	--alias Qwen3.8-Flash-Next \
+	--host 127.0.0.1 --port 8000 \
+	-ngl 99 --split-mode layer --tensor-split 1,1 \
+	-c 262144 -np 2 -fa on \
+	--jinja --reasoning-format deepseek \
+	--temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0
 '''
 import asyncio
 import os
 import warnings
+from datetime import datetime
 from typing import Annotated, Literal
 from urllib.parse import quote_plus
+from zoneinfo import ZoneInfo
 
 import chainlit as cl
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
@@ -22,12 +35,12 @@ from langchain.messages import (
     ToolMessage,
 )
 from langchain_core._api.beta_decorator import LangChainBetaWarning
-from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_ollama import OllamaEmbeddings  # , ChatOllama
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph, add_messages
 from mhbai.student_counselor.langgraph.tools import (
-    get_datum,
+    # get_datum,
     get_klausur,
     get_klausur_by_mongodb_id,
     get_modul,
@@ -44,7 +57,7 @@ from chatbot.tools import (
     dirty_search,
     full_page,
     # get_tool_information,
-    query_database,
+    # query_database,
     search_intranet,
 )
 
@@ -67,6 +80,7 @@ conninfo = f"postgresql+asyncpg://{USERDB}:{PASSWORD}@{HOST}:{PORT}/{DBNAME}"
 # mdl = 'qwen3.8:27b'
 mdl = 'nemotron-3.5-super'
 mdl = 'nvidia/Qwen3.8-27B-NVFP4'
+mdl = 'Qwen3.8-Flash-Next'
 ################################################################
 '''
 Initialize vector database and model
@@ -89,7 +103,13 @@ model = ChatOpenAI(
     streaming=True,
     # reasoning=False,
     base_url='http://localhost:8000/v1',
-    extra_body={"top_k": 20},
+    extra_body={
+        "top_k": 20,
+        "chat_template_kwargs": {
+                "enable_thinking": False,
+                "reasoning_effort": "xhigh"
+        }
+    },
     top_p=0.95,
     # presence_penalty=0,
     # min_p=0,
@@ -129,8 +149,7 @@ tools = [
         # get_klausur_by_mongodb_id,
         # get_modul_by_mongodb_id,
         # get_modulhandbuch_by_mongodb_id,
-        get_datum,
-        # query_database,
+        # get_datum,
 
 
         get_klausur,
@@ -139,7 +158,7 @@ tools = [
         get_modul_by_mongodb_id,
         get_modulhandbuch_by_mongodb_id,
         get_studiengang_modulhandbuch,
-        query_database
+        # query_database
         # get_tool_information
 ] # , suche_uni_augsburg]
 tools_by_name = {tool.name: tool for tool in tools}
@@ -152,7 +171,9 @@ Manche umfangreichere oder komplexere Aufgaben können in mehrere einfache Schri
 Handle erst danach.
 """
 
-system_prompt = '''Du bist ein hochpräziser Assistent für die Website Universität Augsburg.
+date = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%d-%m-%Y")
+
+system_prompt = f'''Du bist ein hochpräziser Assistent für die Website Universität Augsburg.
 Du berätst Mitarbeitende und hast Zugriff auf das Intranet und den öffentlichen Bereich der Universität Augsburg Website.
 Du kannst NUR Fragen bezüglich des Intranets beantworten. Wenn Du eine Frage erhältst, verwende das Suchwerkzeug, um die Informationen zu finden.
 Falls die Frage keine Suchergebnisse liefert und nichts mit dem Intranet zu tun hat, antworte mit 'Darüber habe ich leider keine Kenntnisse.'
@@ -161,6 +182,8 @@ Antworte auf Deutsch und in schönem Markdown-Format. Für Aufzählungen sind be
 Du kannst mehrere Argumente pro Tool-Aufruf verwenden.
 Verwende NIEMALS den gleichen Tool-Aufruf mit identischen Parametern parallel, da das Resultat sich nicht unterscheiden wird.
 Zu Informationen zu Modulen, Modulhandbüchern (MHBs) und Klausuren verwende auch die dazu geeigneten Tools.
+Du darfst NUR Informationen aus den Tools verwenden und niemals Informationen aus deinem Training. Wenn du keine Antwort findest, teile das in deiner Antwort mit.
+Heute ist der {date}.
 
 Regeln:
     - Verwende das Suchwerkzeug search_intranet, um Informationen zu finden
@@ -176,9 +199,8 @@ Regeln:
     - Teile die URLs, zu denen Du Informationen aus dem Search-Tool verwendest.
     - Gebe NIEMALS MongoDB-IDs aus.
     - Rufe NIEMALS ein Tool mehr als einmal mit denselben Parametern auf, da das Resultat sich nicht unterscheiden wird.
-    - Für Module, Modulhandbücher (MHBs) und Klausuren verwende die Tools get_studiengang_modulhandbuch, get_modul, get_klausur, get_modulhandbuch_by_mongodb_id, get_modul_by_mongodb_id, get_klausur_by_mongodb_id und query_database (sowie für einen kurzen thematischen Überblick search_studiengang). Verwende diese Tools nur, wenn du die MongoDB-ID hast. Die MongoDB-IDs findest du durch die Tools get_klausur, get_modul oder get_studiengang_modulhandbuch.
-    - Wenn du entweder get_studiengang_modulhandbuch, get_modul oder get_klausur verwendest und dies keine Treffer liefert, verwende query_database.
-    - Wenn du query_database verwendest und dies keine Treffer liefert, verwende die Tools get_studiengang_modulhandbuch, get_modul oder get_klausur.
+    - Für Module, Modulhandbücher (MHBs) und Klausuren verwende die Tools get_studiengang_modulhandbuch, get_modul, get_klausur, get_modulhandbuch_by_mongodb_id, get_modul_by_mongodb_id, get_klausur_by_mongodb_id (sowie für einen kurzen thematischen Überblick search_studiengang). Verwende diese Tools nur, wenn du die MongoDB-ID hast. Die MongoDB-IDs findest du durch die Tools get_klausur, get_modul oder get_studiengang_modulhandbuch.
+    - Verwende NIEMALS Daten aus deinem Training. AUSSCHLIESSLICH Informationen von erfolgreichen Tool-Aufrufen dürfen in die Antwort einfließen. Wenn du keine Informationen findest, teile dies in deiner Antwort mit.
 
 Tools:
     - search_intranet: Durchsucht die internen Intranet-Websiten und die offiziellen Websiten der Universität Augsburg auf passende Ergebnisse. (Search-Tool)
@@ -204,17 +226,25 @@ Tools:
     - get_modul: Gibt Informationen zu passenden Modulen zurück. Dies bildet nur einen groben Überblick, um Details über einzelne Module zu erlangen, verwenden get_modul_by_mongodb_id.
     - get_studiengang_modulhandbuch: Gibt das Modulhandbuch für einen bestimmten Studiengang zurück. Verwende diese Suche immer, wenn du Informationen zu Module oder dem Aufbau des Studiengangs benötigst. Dies bildet nur einen groben Überblick, um Details über einzelne Modulhandbücher zu erlangen, verwenden get_modulhandbuch_by_mongodb_id.
         Rufe diese Suche nie mehrmals in einem ähnlichen Thema auf, da die Ergebnisse sehr ähnlich sind!!!
-    - get_datum: Gibt das aktuelle Datum zurück. Du kannst das aktuelle Datum verwenden, um die Suche nach Studiengängen zu filtern, die in der Vergangenheit liegen oder in der Zukunft stattfinden.
-    - query_database: Durchsucht die Datenbank nach Informationen zu Modulhandbüchern, Modulen und Klausuren. Das Tool ist sehr teuer, aber da man die Anfrage selbst generiert, kann man bestimmte Informationen und Bedingungen abfragen. Verwende dieses Tool, falls die Anfrage nicht mit get_klausur, get_modul oder get_studiengang_modulhandbuch erledigt werden kann, da die Anfrage nicht passen würde. Es ersetzt diese Tools für komplexere Anfragen.
     Verwende die folgenden Tools, um nach Klausuren, Modulen oder Studiengängen zu suchen, wenn du deren MongoDB-ID kennst (die MongoDB-IDs findest du durch die Tools get_klausur, get_modul oder get_studiengang_modulhandbuch)
     - get_modulhandbuch_by_mongodb_id: Gibt ausführliche Informationen zu einem Modulhandbuch anhand der MongoDB-ID zurück.
     - get_modul_by_mongodb_id: Gibt Informationen zu einem Modul anhand der MongoDB-ID zurück.
     - get_klausur_by_mongodb_id: Gibt Informationen zu einer Klausur anhand der MongoDB-ID zurück.
-- query_database: Durchsucht eine Datenbank mit detaillierten Informationen zu dem Aufbau von Studiengängen (mhbs), Modulen (modules) und Klausuren (exams). Die Datenbank enthält Informationen zu Modulhandbüchern, Modulen und Klausuren, die in der Vergangenheit, Gegenwart und Zukunft stattfinden.
-    Um komplizierte Informationen zwischen den drei Collections mhbs, modules und exams zu erhalten, formuliere eine Anfrage für jede benötigte Collection und führe diese getrennt aus. OFt erhältst du Informationen und MongoDB_IDs aus einer Anfrage, die du dann in der nächsten Anfrage in der nächsten Collection verwenden kannst und sollst.
-    Die Anfrage wird in normaler Sprache formuliert und sollte zudem eine ganz kurze Info enthalten, wofür das Result benötigt wird. Gebe nie die MongoDB-ID an den Nutzer zurück, verwende sie nur intern für Tools etc. Verwende immer vector search und fuzzy search zusammen. Lieber fuzzy search verwenden und wenn das keine Resultate liefert, dann vector search verwenden.
-    Mit diesem Tool kannst du komplexere Anfragen machen, die beispielsweise rankFusion, lookup oder anderes verwenden.
+
 '''
+
+#  und query_database
+# - Wenn du entweder get_studiengang_modulhandbuch, get_modul oder get_klausur verwendest und dies keine Treffer liefert, verwende query_database.
+#
+#  - Wenn du query_database verwendest und dies keine Treffer liefert, verwende die Tools get_studiengang_modulhandbuch, get_modul oder get_klausur.
+# - query_database: Durchsucht die Datenbank nach Informationen zu Modulhandbüchern, Modulen und Klausuren. Das Tool ist sehr teuer, aber da man die Anfrage selbst generiert, kann man bestimmte Informationen und Bedingungen abfragen. Verwende dieses Tool, falls die Anfrage nicht mit get_klausur, get_modul oder get_studiengang_modulhandbuch erledigt werden kann, da die Anfrage nicht passen würde. Es ersetzt diese Tools für komplexere Anfragen.
+# - query_database: Durchsucht eine Datenbank mit detaillierten Informationen zu dem Aufbau von Studiengängen (mhbs), Modulen (modules) und Klausuren (exams). Die Datenbank enthält Informationen zu Modulhandbüchern, Modulen und Klausuren, die in der Vergangenheit, Gegenwart und Zukunft stattfinden.
+#     Um komplizierte Informationen zwischen den drei Collections mhbs, modules und exams zu erhalten, formuliere eine Anfrage für jede benötigte Collection und führe diese getrennt aus. OFt erhältst du Informationen und MongoDB_IDs aus einer Anfrage, die du dann in der nächsten Anfrage in der nächsten Collection verwenden kannst und sollst.
+#     Die Anfrage wird in normaler Sprache formuliert und sollte zudem eine ganz kurze Info enthalten, wofür das Result benötigt wird. Gebe nie die MongoDB-ID an den Nutzer zurück, verwende sie nur intern für Tools etc. Verwende immer vector search und fuzzy search zusammen. Lieber fuzzy search verwenden und wenn das keine Resultate liefert, dann vector search verwenden.
+#     Mit diesem Tool kannst du komplexere Anfragen machen, die beispielsweise rankFusion, lookup oder anderes verwenden.
+#
+# - get_datum: Gibt das aktuelle Datum zurück. Du kannst das aktuelle Datum verwenden, um die Suche nach Studiengängen zu filtern, die in der Vergangenheit liegen oder in der Zukunft stattfinden.
+#
 # - Führe die Tools nur NACHEINANDER aus, nicht gleichzeitig. Warte auf die Antwort des Tools, bevor du das nächste Tool aufrufst.
 
 # model node: decides whether to call the tool node
