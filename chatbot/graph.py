@@ -171,9 +171,8 @@ Manche umfangreichere oder komplexere Aufgaben können in mehrere einfache Schri
 Handle erst danach.
 """
 
-date = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%d-%m-%Y")
 
-system_prompt = f'''Du bist ein hochpräziser Assistent für die Website Universität Augsburg.
+system_prompt = '''Du bist ein hochpräziser Assistent für die Website Universität Augsburg.
 Du berätst Mitarbeitende und hast Zugriff auf das Intranet und den öffentlichen Bereich der Universität Augsburg Website.
 Du kannst NUR Fragen bezüglich des Intranets beantworten. Wenn Du eine Frage erhältst, verwende das Suchwerkzeug, um die Informationen zu finden.
 Falls die Frage keine Suchergebnisse liefert und nichts mit dem Intranet zu tun hat, antworte mit 'Darüber habe ich leider keine Kenntnisse.'
@@ -248,6 +247,15 @@ Tools:
 # - Führe die Tools nur NACHEINANDER aus, nicht gleichzeitig. Warte auf die Antwort des Tools, bevor du das nächste Tool aufrufst.
 
 # model node: decides whether to call the tool node
+
+
+def get_system_prompt() -> str:
+    '''Get the system prompt with the current date'''
+
+    date = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%d.%m.%Y")
+    return system_prompt.format(date=date)
+
+
 async def llm_call(state: dict):
     '''LLM decides whether to call a tool or not'''
 
@@ -256,7 +264,7 @@ async def llm_call(state: dict):
             await model_with_tools.ainvoke(
                 [
                     SystemMessage(
-                        content=system_prompt
+                        content=get_system_prompt()
                     )
                 ]
                 + state['messages']
