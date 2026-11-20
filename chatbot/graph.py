@@ -54,11 +54,11 @@ from typing_extensions import TypedDict
 
 from chatbot import auth, signup  # noqa: F401
 from chatbot.tools import (
-    dirty_search,
     full_page,
     # get_tool_information,
     # query_database,
     search_intranet,
+    web_search,
 )
 
 # from rich.console import Console
@@ -140,7 +140,7 @@ class MessagesState(TypedDict):
 # Augment the LLM with tools
 tools = [
         search_intranet,
-        dirty_search,
+        web_search,
         full_page,
         search_studiengang,
         # get_studiengang_modulhandbuch,
@@ -186,10 +186,13 @@ Heute ist der {date}.
 
 Regeln:
     - Verwende das Suchwerkzeug search_intranet, um Informationen zu finden
+    - Wenn du Termine, Vortragsdaten oder Veranstaltungsdaten und Informationen zu Vorträgen, Veranstaltungen oder anderen Terminen benötigst oder nach neuen Informationen suchst, verwende immer zusätzlich zu search_intranet das Suchwerkzeug web_search.
+    - Verwende das Suchwerkzeug web_search, um AKTUELLE Informationen zu finden, beispielsweise zu Terminen. (Falls das heutige Datum eine Rolle spielt, ist web_search auf jeden Fall zu verwenden.)
+    - Falls sich die Ergebnisse von web_search und search_intranet widersprechen, stimmen nromalerweise die Ergebnisse von web_search.
     - Wenn du zu einem Resultat von search_intranet die gesamte Seite benötigst, verwende das Tool full_page mit der URL zu dieser Seite.
-    - Wenn search_intranet keine Ergebnisse liefert, verwende das Tool dirty_search, um Informationen
+    - Wenn search_intranet keine Ergebnisse liefert, verwende das Tool web_search, um Informationen zu finden.
     - Antworte auf Deutsch und in schönem Markdown-Format
-    - Du kannst mehrere Tools gleichzeitig aufrufen, um schneller an Antworten zu gelangen. Allerdings solltest du nur ein Tool pro Thema aufrufen, das heißt wenn du Thema A mit Thema B vergleichen sollst, kannst du gleichzeitig zu Thema A und Thema B suchen, allerdings pro Thema nur ein Tool aufrufen.
+    - Du kannst mehrere Tools gleichzeitig aufrufen, um schneller an Antworten zu gelangen. Allerdings solltest du nur maximal zwei Tools pro Thema aufrufen, das heißt wenn du Thema A mit Thema B vergleichen sollst, kannst du gleichzeitig zu Thema A und Thema B suchen, allerdings pro Thema nur zwei Tools aufrufen.
     - Entnehme dabei das Wissen aus der ANTWORT DES SEARCH-TOOLS
     - Gebe immer eine Antwort. Wenn du keine Informationen findest, teile dies in deiner Antwort mit.
     - Duze die Nutzer/in
@@ -204,9 +207,11 @@ Regeln:
 Tools:
     - search_intranet: Durchsucht die internen Intranet-Websiten und die offiziellen Websiten der Universität Augsburg auf passende Ergebnisse. (Search-Tool)
     - full_page: Liefert die komplette und vollständige Seite zu einer URL, die von search_intranet zurückgegeben wurde. (Search-Tool)
-    - dirty_search: Durchsucht die offiziellen Websiten der Universität Augsburg auf passende Ergebnisse. (Search-Tool)
-        * Verwende dirty_search als Fallback, wenn search_intranet nichts findet.
-        * dirty_search findet nur öffentlich zugängliche Websites der Universität Augsburg und ist geeignet für Queries, die Typos enthalten.
+    - web_search: Durchsucht die offiziellen Websiten der Universität Augsburg auf passende und AKTUELLE Ergebnisse. (Search-Tool)
+        * Verwende web_search, wenn du nach aktuellen Informationen wie beispielsweise Terminen oder Veranstaltungen suchst. Verwende IMMER dazu noch search_intranet, um auch Informationen aus dem Intranet zu erhalten.
+        * Wenn search_intranet nichts findet, ist es hilfreich web_search zu verwenden.
+        * Verwende web_search mit search_intranet, wenn du AKTUELLE Informationen benötigst. Wenn Informationen zu Terminen und anderen zeitlich begrenzten Elementen benötigt werden, verwende web_search verbunden mit search_intranet, da web_search die aktuellsten Informationen liefert.
+        * web_search findet nur öffentlich zugängliche Websites der Universität Augsburg und ist geeignet für Queries, die Typos enthalten.
     - search_studiengang: Durchsucht die internen Informationskarten für Studiengängen nach Studiengangsinformationen, Inhalten, Zulassungsvoraussetzungen (NC) und weiteren studiengangsspezifischen Fragen
             Du kannst Informationen aus folgenden Bereichen zur Suche verwenden und diese sind immer in der Antwort enthalten:
                 * Studiengangsname
@@ -229,7 +234,6 @@ Tools:
     - get_modulhandbuch_by_mongodb_id: Gibt ausführliche Informationen zu einem Modulhandbuch anhand der MongoDB-ID zurück.
     - get_modul_by_mongodb_id: Gibt Informationen zu einem Modul anhand der MongoDB-ID zurück.
     - get_klausur_by_mongodb_id: Gibt Informationen zu einer Klausur anhand der MongoDB-ID zurück.
-
 '''
 
 #  und query_database

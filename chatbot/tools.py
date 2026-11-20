@@ -87,7 +87,7 @@ async def full_page(url: str) -> str:
 
 # TODO: instead of using trafilatula, convert to markdown
 @tool
-async def dirty_search(query: str, k: int = 3) -> str:
+async def web_search(query: str, k: int = 3) -> str:
     '''
     Findet Seiten der Uni Augsburg mit Informationen zu dem Query.
     Verwende diese Suche nur als Fallback, wenn search_intranet nichts findet.
@@ -146,6 +146,8 @@ async def dirty_search(query: str, k: int = 3) -> str:
             continue
         text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', replacer, text)
         # text = text.replace('@uni-auni-a.de', '@uni-a.de')
+        # NOTE: broken email address format seems to be fixed
+        '''
         splitted = text.split('@')
         for i in range(1, len(splitted)):
             email_end, rest = splitted[i].split('.de', 1)
@@ -156,6 +158,7 @@ async def dirty_search(query: str, k: int = 3) -> str:
                 email_end = f'@{email_end}.de'
             splitted[i] = email_end + rest
         text = ''.join(splitted)
+        '''
         # condensed_text = await _condense_text(text, query)
         results.append(f'Quelle: {url}\n{text}')
     if not results:
@@ -202,7 +205,7 @@ async def query_database(question: str) -> str:
 @tool
 async def get_tool_information(tool_name: Literal[
     'search_intranet',
-    'dirty_search',
+    'web_search',
     'full_page',
     'search_studiengang',
     'get_studiengang_modulhandbuch',

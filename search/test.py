@@ -28,7 +28,7 @@ print(data[0][1])
 print(len(data[0][1]))
 '''
 
-from chatbot.tools import dirty_search
+from chatbot.tools import web_search
 
-docs = asyncio.run(dirty_search.ainvoke({"query": "Informatik Bachelor", "k": 3}))
+docs = asyncio.run(web_search.ainvoke({"query": "Informatik Bachelor", "k": 3}))
 print(docs)
