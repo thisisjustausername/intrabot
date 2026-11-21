@@ -51,7 +51,50 @@ We provide a dummy .env file:
     psql -d chlit -f chatbot/data_storage/schema.sql
     ```
 
-4. Run pipeline
+4. Set up SearXNG websearch engine for running the websearch tool for the chatbot
+    ```bash
+    # Install SearXNG
+    cd /usr/local
+    git clone https://github.com/searxng/searxng.git searxng
+    cd searxng
+    sudo -H ./utils/searxng.sh install all
+  
+    # Enable the correct search engines and json format
+    sudo nano searx/settings.yml
+    # NOTE: set disable: false for google, google_cse, duckduckgo, bing, yahoo
+    # NOTE: under formats: add - json
+    # NOTE: save and exit
+    
+    sudo nano /etc/searxng/settings.yml
+    # NOTE: under formats: add - json
+    ```
+    Then create a systemd-service in order to run SearXNG on bootup.
+    ```ini
+    [Unit]
+    Description=SearXNG Search Engine
+    After=network.target
+    
+    [Service]
+    Type=simple
+    User=searxng
+    Group=searxng
+    WorkingDirectory=/usr/local/searxng/searxng-src
+    Environment=SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
+    ExecStart=/bin/bash -l -c "python -m searx.webapp"
+    Restart=always
+    
+    [Install]
+    WantedBy=multi-user.target
+    ```
+
+  Now simply enable and start the service.
+  ```bash
+  sudo systemctl daemon-reload
+  sudo systemctl enable searxng.service
+  sudo systemctl start searxng.service
+  ```
+
+5. Run pipeline
     This only has to be run once for setting up a TOTP-token for the 2FA-login to the intrant:
     * Follow the instructions for adding a TOTP-token and instead of scanning the QR-code, copy the TOTP-secret and paste it into your .env file.
     * Then run following:
@@ -104,7 +147,7 @@ We provide a dummy .env file:
     python3 -m search.create_lexical_search
     ```
 
-5. Start LLM-Backend with vLLM<br/>
+6. Start LLM-Backend with vLLM<br/>
   For `tensor-parallel-size` specify the amount of individual GPUs you plan on using.
   Note, that nemotron-3.5-super has a max model length of 1_000_000 tokens.
     ```bash
@@ -177,7 +220,7 @@ We provide a dummy .env file:
     ```    
 
 
-6. Finally run your intrabot chatbot with the first command or intraSearch with the second command
+7. Finally run your intrabot chatbot with the first command or intraSearch with the second command
     ```bash
     python3 -m chainlit run chatbot/graph.py --host 127.0.0.1 --port 8001 --root-path /intrabot
     ```
